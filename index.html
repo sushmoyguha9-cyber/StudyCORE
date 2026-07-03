@@ -1,0 +1,2349 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyCORE (SCr) — অনলাইন কোচিং</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, query, where, orderBy, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA8MPLSwpB94D_CzH0BByz128b4honNrHo",
+    authDomain: "sush-61e03.firebaseapp.com",
+    databaseURL: "https://sush-61e03-default-rtdb.firebaseio.com",
+    projectId: "sush-61e03",
+    storageBucket: "sush-61e03.firebasestorage.app",
+    messagingSenderId: "499373297123",
+    appId: "1:499373297123:web:aedb616d5514b47f2924d6",
+    measurementId: "G-J8W3NJ2DCD"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  window._fbAuth = getAuth(app);
+  window._fbDb = getFirestore(app);
+  window._fbFns = {
+    signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+    onAuthStateChanged, sendEmailVerification, doc, getDoc, setDoc, updateDoc,
+    collection, getDocs, addDoc, query, where, orderBy,
+    serverTimestamp, onSnapshot
+  };
+
+  // Listen for auth state changes
+  onAuthStateChanged(window._fbAuth, async (firebaseUser) => {
+    // Only treat the user as "logged in" for app purposes once their email
+    // is verified. Unverified sessions never populate window._currentFbUser,
+    // which keeps them out of Dashboard/protected pages via the router guards.
+    if (firebaseUser && firebaseUser.emailVerified) {
+      // Fetch user profile from Firestore
+      const userRef = doc(window._fbDb, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        window._currentFbUser = { id: firebaseUser.uid, ...userData };
+      } else {
+        window._currentFbUser = { id: firebaseUser.uid, email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email, role: 'student' };
+      }
+    } else {
+      window._currentFbUser = null;
+    }
+    // Re-render nav if app is ready
+    if (typeof renderNavActions === 'function') {
+      renderNavActions();
+      updateActiveNavLink();
+    }
+  });
+</script>
+<style>
+/* ============================================================
+   STUDYCORE — DESIGN SYSTEM
+   Tokens: ink/paper palette, Fraunces display + Hind Siliguri body
+   Signature: notebook-tab subject cards + graph-paper hero texture
+   ============================================================ */
+
+:root{
+  /* color */
+  --indigo:#1B2B4D;
+  --indigo-light:#2C4270;
+  --paper:#FAF8F3;
+  --paper-dim:#F1EDE3;
+  --ink:#22252B;
+  --ink-soft:#5B5F6A;
+  --grid-line:#D8D2C4;
+  --green:#2F9E63;
+  --green-dark:#247A4D;
+  --coral:#E8623D;
+  --coral-dark:#CC4E2C;
+  --line:#E4DFD2;
+  --white:#FFFFFF;
+
+  /* subject accent colors */
+  --sub-math:#2C4270;
+  --sub-physics:#C76A2E;
+  --sub-chem:#3C8C5E;
+  --sub-bio:#5C8A3A;
+  --sub-english:#7A4F9E;
+  --sub-ict:#1E7FA8;
+  --sub-general:#8A6D3B;
+
+  /* type */
+  --font-display:'Fraunces', Georgia, serif;
+  --font-body:'Hind Siliguri', system-ui, sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+
+  /* radius / shadow */
+  --r-sm:8px;
+  --r-md:14px;
+  --r-lg:22px;
+  --shadow-card:0 1px 2px rgba(27,43,77,0.06), 0 8px 24px -8px rgba(27,43,77,0.12);
+  --shadow-pop:0 12px 40px -12px rgba(27,43,77,0.35);
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  font-family:var(--font-body);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:var(--font-display);
+  margin:0;
+  font-weight:600;
+  letter-spacing:-0.01em;
+  color:var(--indigo);
+}
+p{margin:0;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;}
+input,select,textarea{font-family:inherit;font-size:15px;}
+::selection{background:var(--coral);color:#fff;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+}
+
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+
+/* ============ NAVBAR ============ */
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(250,248,243,0.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{
+  max-width:1180px;margin:0 auto;padding:14px 24px;
+  display:flex;align-items:center;gap:28px;
+}
+.brand{
+  display:flex;align-items:center;gap:10px;
+  background:none;border:none;padding:0;
+}
+.brand-mark{
+  font-family:var(--font-display);
+  font-weight:700;font-size:18px;color:var(--white);
+  background:var(--indigo);
+  width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:0.02em;
+}
+.brand-mark.small{width:30px;height:30px;font-size:13px;border-radius:8px;}
+.brand-name{
+  font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--indigo);
+}
+.nav-links{display:flex;gap:4px;flex:1;}
+.nav-link{
+  background:none;border:none;padding:9px 14px;border-radius:999px;
+  font-size:14.5px;font-weight:500;color:var(--ink-soft);
+  transition:background .15s, color .15s;
+}
+.nav-link:hover{background:var(--paper-dim);color:var(--indigo);}
+.nav-link.active{background:var(--indigo);color:#fff;}
+.nav-actions{display:flex;gap:10px;align-items:center;}
+.nav-burger{display:none;background:none;border:none;width:36px;height:36px;flex-direction:column;justify-content:center;gap:4px;align-items:center;}
+.nav-burger span{width:20px;height:2px;background:var(--indigo);border-radius:2px;}
+
+.btn{
+  border:none;border-radius:999px;padding:10px 20px;font-size:14.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:6px;transition:transform .12s, box-shadow .12s, background .15s;
+  white-space:nowrap;
+}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:var(--coral);color:#fff;}
+.btn-primary:hover{background:var(--coral-dark);}
+.btn-dark{background:var(--indigo);color:#fff;}
+.btn-dark:hover{background:var(--indigo-light);}
+.btn-ghost{background:transparent;color:var(--indigo);border:1.5px solid var(--line);}
+.btn-ghost:hover{border-color:var(--indigo);}
+.btn-sm{padding:7px 14px;font-size:13.5px;}
+.btn-block{width:100%;justify-content:center;}
+.btn-danger{background:#fff;color:#B3422A;border:1.5px solid #EBC4B6;}
+.btn-danger:hover{background:#FBEDE7;}
+.btn[disabled]{opacity:0.5;cursor:not-allowed;}
+
+.avatar-pill{
+  display:flex;align-items:center;gap:8px;background:var(--paper-dim);
+  border-radius:999px;padding:6px 14px 6px 6px;border:1px solid var(--line);
+  font-size:13.5px;font-weight:600;color:var(--indigo);
+}
+.avatar-circle{
+  width:26px;height:26px;border-radius:50%;background:var(--indigo);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
+}
+
+/* ============ HERO ============ */
+.hero{
+  position:relative;overflow:hidden;
+  background:
+    linear-gradient(180deg, var(--paper) 0%, var(--paper) 60%, var(--paper-dim) 100%),
+    repeating-linear-gradient(0deg, transparent, transparent 31px, var(--grid-line) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, var(--grid-line) 32px);
+  background-blend-mode:normal, multiply, multiply;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 0%, rgba(250,248,243,0) 0%, var(--paper) 85%);
+  pointer-events:none;
+}
+.hero-inner{
+  max-width:1180px;margin:0 auto;padding:72px 24px 56px;position:relative;z-index:1;
+  display:grid;grid-template-columns:1.1fr 0.9fr;gap:48px;align-items:center;
+}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:12.5px;letter-spacing:0.06em;
+  color:var(--green-dark);background:#E8F4EC;border:1px solid #CDE9D7;
+  padding:6px 12px;border-radius:999px;margin-bottom:18px;text-transform:uppercase;
+}
+.eyebrow::before{content:'●';font-size:8px;color:var(--green);}
+.hero h1{
+  font-size:clamp(32px,4.6vw,52px);line-height:1.08;margin-bottom:18px;
+}
+.hero h1 em{
+  font-style:normal;color:var(--coral);
+  background:linear-gradient(180deg, transparent 62%, #FBDDD0 62%);
+}
+.hero-sub{
+  font-size:17px;color:var(--ink-soft);max-width:480px;margin-bottom:30px;line-height:1.65;
+}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:34px;}
+.btn-lg{padding:14px 26px;font-size:15.5px;}
+.hero-stats{display:flex;gap:32px;flex-wrap:wrap;}
+.hero-stat b{font-family:var(--font-display);font-size:26px;color:var(--indigo);display:block;}
+.hero-stat span{font-size:13px;color:var(--ink-soft);}
+
+.hero-visual{position:relative;height:380px;}
+.problem-card{
+  position:absolute;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);
+  box-shadow:var(--shadow-card);padding:18px 20px;width:240px;
+}
+.problem-card.pc-1{top:0;right:30px;transform:rotate(-3deg);}
+.problem-card.pc-2{top:120px;right:160px;transform:rotate(2deg);z-index:2;}
+.problem-card.pc-3{top:250px;right:10px;transform:rotate(4deg);}
+.pc-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:block;}
+.pc-formula{font-family:var(--font-display);font-size:19px;color:var(--indigo);}
+.pc-check{display:inline-flex;align-items:center;gap:5px;color:var(--green-dark);font-size:12px;font-weight:600;margin-top:8px;}
+
+@media (max-width:860px){
+  .hero-inner{grid-template-columns:1fr;}
+  .hero-visual{display:none;}
+}
+
+/* ============ SECTION GENERIC ============ */
+.section{max-width:1180px;margin:0 auto;padding:64px 24px;}
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:32px;flex-wrap:wrap;}
+.section-head h2{font-size:clamp(24px,3vw,32px);}
+.section-head p{color:var(--ink-soft);font-size:15px;margin-top:6px;}
+
+/* ============ SUBJECT TABS / CLASS SELECTOR ============ */
+.class-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+@media (max-width:860px){.class-grid{grid-template-columns:repeat(2,1fr);}}
+.class-card{
+  background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);
+  padding:26px 22px;text-align:left;transition:border-color .15s, transform .15s, box-shadow .15s;
+  position:relative;overflow:hidden;
+}
+.class-card:hover{border-color:var(--indigo);transform:translateY(-3px);box-shadow:var(--shadow-card);}
+.class-card .tab-num{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);}
+.class-card h3{font-size:24px;margin:10px 0 4px;}
+.class-card .cc-sub{font-size:13px;color:var(--ink-soft);margin-bottom:14px;}
+.class-card .cc-count{font-size:13px;font-weight:600;color:var(--green-dark);}
+.class-card .cc-arrow{
+  position:absolute;bottom:20px;right:20px;width:32px;height:32px;border-radius:50%;
+  background:var(--paper-dim);display:flex;align-items:center;justify-content:center;
+  transition:background .15s, transform .15s;
+}
+.class-card:hover .cc-arrow{background:var(--indigo);color:#fff;transform:translateX(3px);}
+
+/* ============ SUBJECT FILTER PILLS ============ */
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;}
+.pill{
+  border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;
+  font-size:13.5px;font-weight:600;color:var(--ink-soft);transition:all .15s;
+  display:flex;align-items:center;gap:7px;
+}
+.pill .dot{width:8px;height:8px;border-radius:50%;}
+.pill.active{background:var(--indigo);color:#fff;border-color:var(--indigo);}
+.pill.active .dot{background:#fff;}
+
+/* ============ COURSE CARD (notebook tab) ============ */
+.course-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+@media (max-width:980px){.course-grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:680px){.course-grid{grid-template-columns:1fr;}}
+
+.course-card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);
+  overflow:hidden;display:flex;flex-direction:column;transition:transform .15s, box-shadow .15s;
+  cursor:pointer;
+}
+.course-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-card);}
+.course-tab{
+  height:7px;width:100%;
+}
+.course-banner{
+  height:120px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:15px;font-weight:600;color:#fff;position:relative;
+}
+.course-banner .subject-icon{font-size:34px;opacity:0.9;}
+.course-body{padding:18px 20px;display:flex;flex-direction:column;gap:10px;flex:1;}
+.course-meta-row{display:flex;justify-content:space-between;align-items:center;}
+.subject-chip{
+  font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;
+  padding:3px 9px;border-radius:6px;font-weight:600;
+}
+.badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:0.02em;}
+.badge-free{background:#E8F4EC;color:var(--green-dark);}
+.badge-paid{background:#FBEDE7;color:var(--coral-dark);}
+.course-card h3{font-size:17.5px;line-height:1.35;}
+.course-desc{font-size:13.5px;color:var(--ink-soft);line-height:1.5;}
+.course-foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:8px;border-top:1px solid var(--paper-dim);}
+.course-price{font-family:var(--font-display);font-size:18px;color:var(--indigo);font-weight:600;}
+.course-price .old{font-size:13px;color:var(--ink-soft);text-decoration:line-through;font-weight:400;margin-right:6px;}
+.course-stat{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;}
+
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--ink-soft);
+}
+.empty-state .ee-icon{font-size:40px;margin-bottom:14px;}
+
+/* ============ COURSE DETAIL ============ */
+.detail-wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px;}
+.breadcrumb{font-size:13px;color:var(--ink-soft);margin-bottom:22px;display:flex;gap:8px;align-items:center;}
+.breadcrumb button{background:none;border:none;color:var(--ink-soft);font-size:13px;padding:0;text-decoration:underline;}
+.detail-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:40px;align-items:start;}
+@media (max-width:900px){.detail-grid{grid-template-columns:1fr;}}
+
+.detail-banner{
+  height:220px;border-radius:var(--r-lg);display:flex;flex-direction:column;justify-content:flex-end;
+  padding:24px;color:#fff;position:relative;overflow:hidden;margin-bottom:26px;
+}
+.detail-banner .subject-icon-big{position:absolute;top:24px;right:24px;font-size:56px;opacity:0.25;}
+.detail-title{font-size:clamp(24px,3vw,32px);color:#fff;margin-bottom:6px;}
+.detail-tags{display:flex;gap:8px;}
+.tag-soft{background:rgba(255,255,255,0.18);backdrop-filter:blur(4px);font-size:12px;padding:4px 10px;border-radius:999px;font-weight:600;}
+
+.detail-section{margin-bottom:32px;}
+.detail-section h3{font-size:18px;margin-bottom:14px;}
+.detail-section p{color:var(--ink-soft);line-height:1.7;font-size:14.5px;}
+
+.chapter-list{display:flex;flex-direction:column;gap:10px;}
+.chapter-item{
+  border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;
+  display:flex;align-items:center;gap:14px;background:#fff;
+}
+.chapter-num{
+  width:30px;height:30px;border-radius:8px;background:var(--paper-dim);color:var(--indigo);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:13px;font-weight:600;flex-shrink:0;
+}
+.chapter-info{flex:1;}
+.chapter-info b{font-size:14px;display:block;}
+.chapter-info span{font-size:12px;color:var(--ink-soft);}
+.chapter-lock{color:var(--ink-soft);font-size:18px;}
+.chapter-play{color:var(--green-dark);font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px;}
+
+.sidebar-card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:24px;
+  position:sticky;top:90px;box-shadow:var(--shadow-card);
+}
+.sidebar-price{display:flex;align-items:baseline;gap:10px;margin-bottom:4px;}
+.sidebar-price b{font-family:var(--font-display);font-size:30px;color:var(--indigo);}
+.sidebar-price .old{font-size:15px;color:var(--ink-soft);text-decoration:line-through;}
+.sidebar-discount{font-size:12.5px;color:var(--green-dark);font-weight:600;margin-bottom:18px;}
+.sidebar-list{display:flex;flex-direction:column;gap:10px;margin:18px 0;}
+.sidebar-list li{list-style:none;display:flex;gap:10px;font-size:13.5px;color:var(--ink-soft);align-items:flex-start;}
+.sidebar-list .ic{color:var(--green-dark);flex-shrink:0;}
+
+.live-banner{
+  background:linear-gradient(135deg, #FBEDE7, #FBF3EC);border:1px solid #F0D5C5;
+  border-radius:var(--r-md);padding:14px 16px;margin-top:16px;display:flex;gap:12px;align-items:center;
+}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#D6492B;flex-shrink:0;
+  box-shadow:0 0 0 0 rgba(214,73,43,0.5);animation:pulse 1.8s infinite;}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(214,73,43,0.45);}
+  70%{box-shadow:0 0 0 8px rgba(214,73,43,0);}
+  100%{box-shadow:0 0 0 0 rgba(214,73,43,0);}
+}
+.live-banner b{font-size:13.5px;display:block;}
+.live-banner span{font-size:12px;color:var(--ink-soft);}
+
+/* ============ MODAL ============ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(27,29,33,0.55);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
+  animation:fadeIn .15s ease;
+}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.modal-box{
+  background:#fff;border-radius:var(--r-lg);max-width:460px;width:100%;
+  max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-pop);
+  animation:popIn .18s cubic-bezier(.2,.9,.3,1.2);
+}
+.modal-box.wide{max-width:640px;}
+@keyframes popIn{from{transform:scale(0.95) translateY(8px);opacity:0;}to{transform:scale(1) translateY(0);opacity:1;}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:22px 24px 0;}
+.modal-head h3{font-size:19px;}
+.modal-close{background:none;border:none;font-size:20px;color:var(--ink-soft);width:30px;height:30px;border-radius:50%;}
+.modal-close:hover{background:var(--paper-dim);}
+.modal-body{padding:18px 24px 26px;}
+.modal-sub{font-size:13.5px;color:var(--ink-soft);margin-bottom:18px;}
+
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--indigo);margin-bottom:6px;}
+.field input,.field select,.field textarea{
+  width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:var(--r-sm);
+  background:var(--paper);transition:border-color .15s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--indigo);}
+.field-hint{font-size:12px;color:var(--ink-soft);margin-top:5px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+.tab-switch{display:flex;background:var(--paper-dim);border-radius:999px;padding:4px;margin-bottom:20px;}
+.tab-switch button{flex:1;border:none;background:none;padding:9px;border-radius:999px;font-size:13.5px;font-weight:600;color:var(--ink-soft);}
+.tab-switch button.active{background:#fff;color:var(--indigo);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+
+.pay-method-row{display:flex;gap:10px;margin-bottom:16px;}
+.pay-method{
+  flex:1;border:1.5px solid var(--line);border-radius:var(--r-md);padding:12px;text-align:center;
+  background:#fff;font-weight:600;font-size:13.5px;transition:all .15s;
+}
+.pay-method.active{border-color:var(--indigo);background:var(--paper-dim);}
+.pay-number-box{
+  background:var(--paper-dim);border:1px dashed var(--grid-line);border-radius:var(--r-sm);
+  padding:12px 14px;font-family:var(--font-mono);font-size:14px;color:var(--indigo);
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;
+}
+.copy-btn{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:600;color:var(--ink-soft);}
+
+.alert-box{border-radius:var(--r-sm);padding:12px 14px;font-size:13px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start;}
+.alert-info{background:#EAF1FB;color:#2A5188;}
+.alert-warn{background:#FBF3E0;color:#8A6D1B;}
+.alert-success{background:#E8F4EC;color:var(--green-dark);}
+
+/* ============ AUTH ============ */
+.auth-wrap{max-width:420px;margin:60px auto 100px;padding:0 24px;}
+.auth-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:36px 30px;box-shadow:var(--shadow-card);}
+.auth-card h2{font-size:24px;text-align:center;margin-bottom:6px;}
+.auth-sub{text-align:center;font-size:13.5px;color:var(--ink-soft);margin-bottom:26px;}
+.auth-switch{text-align:center;font-size:13.5px;color:var(--ink-soft);margin-top:18px;}
+.auth-switch button{background:none;border:none;color:var(--coral);font-weight:700;padding:0;}
+.demo-hint{background:var(--paper-dim);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:var(--ink-soft);margin-top:16px;line-height:1.6;}
+
+/* ============ DASHBOARD ============ */
+.dash-wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px;}
+.dash-head{margin-bottom:30px;}
+.dash-head h2{font-size:26px;}
+.dash-head p{color:var(--ink-soft);margin-top:4px;font-size:14px;}
+.dash-tabs{display:flex;gap:6px;border-bottom:1.5px solid var(--line);margin-bottom:28px;flex-wrap:wrap;}
+.dash-tab{background:none;border:none;padding:10px 4px;margin-right:22px;font-size:14.5px;font-weight:600;color:var(--ink-soft);border-bottom:2.5px solid transparent;margin-bottom:-2px;}
+.dash-tab.active{color:var(--indigo);border-color:var(--coral);}
+
+.myc-row{display:flex;flex-direction:column;gap:14px;}
+.myc-item{
+  display:flex;gap:16px;background:#fff;border:1px solid var(--line);border-radius:var(--r-md);
+  padding:16px;align-items:center;
+}
+.myc-thumb{
+  width:70px;height:70px;border-radius:var(--r-sm);flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  font-size:24px;color:#fff;
+}
+.myc-info{flex:1;}
+.myc-info b{display:block;font-size:15px;margin-bottom:4px;}
+.myc-info span{font-size:12.5px;color:var(--ink-soft);}
+.myc-progress-track{height:6px;background:var(--paper-dim);border-radius:99px;margin-top:8px;overflow:hidden;width:100%;max-width:240px;}
+.myc-progress-fill{height:100%;background:var(--green);border-radius:99px;}
+
+.pending-item{
+  display:flex;justify-content:space-between;align-items:center;background:#fff;
+  border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px;
+}
+.pending-item b{font-size:14px;display:block;}
+.pending-item span{font-size:12px;color:var(--ink-soft);font-family:var(--font-mono);}
+.status-chip{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;}
+.status-pending{background:#FBF3E0;color:#8A6D1B;}
+.status-approved{background:#E8F4EC;color:var(--green-dark);}
+.status-rejected{background:#FBEAE7;color:#B3422A;}
+
+/* ============ LEARN PAGE (video player area) ============ */
+.learn-grid{display:grid;grid-template-columns:1fr 320px;gap:0;min-height:70vh;}
+@media (max-width:900px){.learn-grid{grid-template-columns:1fr;}}
+.learn-main{padding:28px 32px;}
+.video-frame{
+  width:100%;aspect-ratio:16/9;background:var(--indigo);border-radius:var(--r-md);
+  display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:20px;overflow:hidden;
+  position:relative;
+}
+.video-frame iframe{width:100%;height:100%;border:none;}
+.video-placeholder{text-align:center;}
+.video-placeholder .vp-icon{font-size:40px;margin-bottom:10px;}
+.learn-sidebar{
+  background:var(--paper-dim);border-right:1px solid var(--line);border-left:1px solid var(--line);
+  padding:20px 0;max-height:80vh;overflow-y:auto;
+}
+.learn-sb-head{padding:0 20px 14px;font-size:13px;font-weight:700;color:var(--indigo);text-transform:uppercase;letter-spacing:0.04em;}
+.learn-ch-item{
+  padding:13px 20px;display:flex;gap:12px;align-items:center;cursor:pointer;border-left:3px solid transparent;
+  transition:background .12s;
+}
+.learn-ch-item:hover{background:#fff;}
+.learn-ch-item.active{background:#fff;border-left-color:var(--coral);}
+.learn-ch-num{width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--indigo);flex-shrink:0;}
+.learn-ch-item.active .learn-ch-num{background:var(--coral);color:#fff;border-color:var(--coral);}
+.learn-ch-title{font-size:13.5px;font-weight:600;flex:1;}
+.learn-ch-dur{font-size:11px;color:var(--ink-soft);}
+
+/* ============ ADMIN ============ */
+.admin-wrap{max-width:1280px;margin:0 auto;padding:30px 24px 80px;display:grid;grid-template-columns:230px 1fr;gap:28px;}
+@media (max-width:900px){.admin-wrap{grid-template-columns:1fr;}}
+.admin-side{display:flex;flex-direction:column;gap:4px;}
+.admin-side-head{font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);font-weight:700;margin:14px 0 8px;padding:0 8px;}
+.admin-side-head:first-child{margin-top:0;}
+.admin-nav-item{
+  background:none;border:none;text-align:left;padding:10px 12px;border-radius:var(--r-sm);
+  font-size:14px;font-weight:600;color:var(--ink-soft);display:flex;align-items:center;gap:10px;justify-content:space-between;
+}
+.admin-nav-item:hover{background:var(--paper-dim);}
+.admin-nav-item.active{background:var(--indigo);color:#fff;}
+.admin-nav-badge{background:var(--coral);color:#fff;font-size:11px;border-radius:999px;padding:1px 7px;font-weight:700;}
+.admin-nav-item.active .admin-nav-badge{background:#fff;color:var(--coral-dark);}
+
+.admin-main h2{font-size:23px;margin-bottom:4px;}
+.admin-main .am-sub{color:var(--ink-soft);font-size:13.5px;margin-bottom:24px;}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+@media (max-width:780px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+.kpi-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:18px;}
+.kpi-card span{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+.kpi-card b{display:block;font-family:var(--font-display);font-size:26px;color:var(--indigo);margin-top:6px;}
+
+.admin-table-wrap{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;}
+table.admin-table{width:100%;border-collapse:collapse;font-size:13.5px;}
+.admin-table th{
+  text-align:left;padding:12px 16px;background:var(--paper-dim);color:var(--ink-soft);
+  font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid var(--line);
+}
+.admin-table td{padding:12px 16px;border-bottom:1px solid var(--paper-dim);vertical-align:middle;}
+.admin-table tr:last-child td{border-bottom:none;}
+.admin-table tr:hover td{background:#FCFBF8;}
+.row-actions{display:flex;gap:6px;}
+.icon-btn{
+  background:var(--paper-dim);border:none;width:30px;height:30px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--indigo);
+}
+.icon-btn:hover{background:var(--line);}
+.icon-btn.danger{color:#B3422A;}
+
+.admin-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+.search-box{
+  display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--line);
+  border-radius:999px;padding:8px 16px;font-size:13.5px;min-width:220px;
+}
+.search-box input{border:none;background:none;outline:none;flex:1;}
+
+.form-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:24px;margin-bottom:20px;}
+.form-card h3{font-size:16px;margin-bottom:16px;}
+
+.chip-toggle{
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 4px;
+  background:var(--paper-dim);
+}
+.chip-toggle button{border:none;background:none;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;color:var(--ink-soft);}
+.chip-toggle button.active{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.1);color:var(--indigo);}
+
+.cur-list{display:flex;flex-direction:column;gap:8px;}
+.cur-list-item{
+  display:flex;align-items:center;gap:10px;background:var(--paper-dim);border-radius:var(--r-sm);padding:9px 12px;
+}
+.cur-list-item input{flex:1;border:none;background:transparent;padding:4px;}
+.cur-list-item input:focus{outline:none;}
+
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--paper-dim);}
+.toggle-row:last-child{border-bottom:none;}
+.toggle-row strong{font-size:13.5px;display:block;}
+.toggle-row span{font-size:12px;color:var(--ink-soft);}
+.switch{position:relative;width:42px;height:24px;flex-shrink:0;}
+.switch input{opacity:0;width:0;height:0;}
+.switch .track{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s;cursor:pointer;}
+.switch .track::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.switch input:checked + .track{background:var(--green);}
+.switch input:checked + .track::before{transform:translateX(18px);}
+
+/* ============ SUPPORT ============ */
+.support-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;max-width:1180px;margin:0 auto;padding:50px 24px 90px;}
+@media (max-width:860px){.support-grid{grid-template-columns:1fr;}}
+.faq-item{border-bottom:1px solid var(--line);padding:16px 0;}
+.faq-q{display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:600;font-size:14.5px;color:var(--indigo);}
+.faq-a{font-size:13.5px;color:var(--ink-soft);margin-top:10px;line-height:1.6;display:none;}
+.faq-item.open .faq-a{display:block;}
+.faq-item.open .faq-q .chev{transform:rotate(180deg);}
+.chev{transition:transform .15s;}
+
+.ticket-item{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);padding:16px;margin-bottom:12px;}
+.ticket-item b{font-size:14px;}
+.ticket-item p{font-size:13px;color:var(--ink-soft);margin-top:6px;}
+.ticket-meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+
+/* ============ TOAST ============ */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--indigo);color:#fff;padding:13px 22px;border-radius:999px;font-size:13.5px;font-weight:600;
+  box-shadow:var(--shadow-pop);z-index:200;opacity:0;pointer-events:none;transition:all .25s cubic-bezier(.2,.9,.3,1.1);
+  display:flex;align-items:center;gap:10px;max-width:90vw;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+.toast.error{background:#B3422A;}
+.toast.success{background:var(--green-dark);}
+
+/* ============ FOOTER ============ */
+.site-footer{background:var(--indigo);color:#fff;padding:50px 24px 24px;margin-top:40px;}
+.footer-inner{max-width:1180px;margin:0 auto;display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;padding-bottom:30px;border-bottom:1px solid rgba(255,255,255,0.12);}
+.footer-brand{max-width:340px;display:flex;flex-direction:column;gap:12px;}
+.footer-brand p{font-size:13.5px;color:rgba(255,255,255,0.65);line-height:1.6;}
+.footer-cols{display:flex;gap:50px;}
+.footer-cols h4{color:#fff;font-size:13px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:14px;font-family:var(--font-body);}
+.footer-cols p,.footer-link{display:block;font-size:13.5px;color:rgba(255,255,255,0.65);margin-bottom:10px;background:none;border:none;padding:0;text-align:left;}
+.footer-link:hover{color:#fff;}
+.footer-copy{text-align:center;font-size:12.5px;color:rgba(255,255,255,0.45);margin:24px auto 0;max-width:1180px;}
+
+/* ============ UTILITY ============ */
+.flex-center{display:flex;align-items:center;justify-content:center;}
+.text-center{text-align:center;}
+.mt-8{margin-top:8px;}
+.gap-icon{display:inline-flex;align-items:center;gap:6px;}
+
+@media (max-width:780px){
+  .nav-links{display:none;}
+  .nav-burger{display:flex;}
+  .nav-links.open{
+    display:flex;position:absolute;top:100%;left:0;right:0;background:var(--paper);
+    flex-direction:column;padding:10px 24px 18px;border-bottom:1px solid var(--line);gap:4px;
+  }
+  .detail-grid{gap:24px;}
+  .admin-wrap{padding-top:16px;}
+}
+
+</style>
+</head>
+<body>
+
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast"></div>
+
+<!-- ========== NAVBAR ========== -->
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <button class="brand" data-nav="home" aria-label="SCr হোমে যান">
+      <span class="brand-mark">SCr</span>
+      <span class="brand-name">StudyCORE</span>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <button class="nav-link" data-nav="home">হোম</button>
+      <button class="nav-link" data-nav="classes">ক্লাস</button>
+      <button class="nav-link" data-nav="support">সাপোর্ট</button>
+    </nav>
+    <div class="nav-actions" id="navActions"></div>
+    <button class="nav-burger" id="navBurger" aria-label="মেনু খুলুন">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<!-- ========== APP ROOT ========== -->
+<main id="app"></main>
+
+<!-- ========== FOOTER ========== -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark small">SCr</span>
+      <p>StudyCORE — সকল বিষয়ের পূর্ণাঙ্গ অনলাইন কোচিং, ক্লাস ৯ থেকে ১২।</p>
+    </div>
+    <div class="footer-cols">
+      <div>
+        <h4>প্ল্যাটফর্ম</h4>
+        <button class="footer-link" data-nav="classes">সব ক্লাস</button>
+        <button class="footer-link" data-nav="support">সাপোর্ট</button>
+      </div>
+      <div>
+        <h4>যোগাযোগ</h4>
+        <p>support@studycore.com</p>
+        <p>+৮৮০ ১৭xx-xxxxxx</p>
+      </div>
+    </div>
+  </div>
+  <p class="footer-copy">© ২০২৬ StudyCORE। সর্বস্বত্ব সংরক্ষিত।</p>
+</footer>
+
+<!-- ========== MODAL ROOT ========== -->
+<div id="modalRoot"></div>
+
+<script>
+/* ============================================================
+   STUDYCORE (SCr) — APP LOGIC
+   Plain JS, no framework. Data persisted in localStorage.
+   ============================================================ */
+
+/* ---------- STORAGE KEYS ---------- */
+const DB_KEY = 'fmc_db_v1';
+
+/* ---------- SUBJECT META ---------- */
+const SUBJECTS = {
+  math:    { label:'গণিত',           color:'var(--sub-math)',    icon:'∑' },
+  physics: { label:'পদার্থবিজ্ঞান',   color:'var(--sub-physics)', icon:'⚛' },
+  chemistry:{ label:'রসায়ন',         color:'var(--sub-chem)',    icon:'⚗' },
+  biology: { label:'জীববিজ্ঞান',      color:'var(--sub-bio)',     icon:'🌿' },
+  english: { label:'ইংরেজি',          color:'var(--sub-english)', icon:'Ab' },
+  ict:     { label:'আইসিটি',          color:'var(--sub-ict)',     icon:'⌘' },
+  general: { label:'সাধারণ',          color:'var(--sub-general)', icon:'✎' }
+};
+
+/* ---------- SEED DATA (first run only) ---------- */
+function seedDB(){
+  return {
+    users: [],  // Users now stored in Firebase Auth + Firestore — no hardcoded credentials here
+    classes: [
+      { id:'c9', name:'ক্লাস ৯', tagline:'মাধ্যমিকের ভিত্তি গড়ার বছর' },
+      { id:'c10', name:'ক্লাস ১০', tagline:'এসএসসি পরীক্ষার পূর্ণ প্রস্তুতি' },
+      { id:'c11', name:'ক্লাস ১১', tagline:'উচ্চমাধ্যমিকের নতুন যাত্রা' },
+      { id:'c12', name:'ক্লাস ১২', tagline:'এইচএসসি পরীক্ষার পূর্ণ প্রস্তুতি' }
+    ],
+    courses: [
+      {
+        id:'crs_1', classId:'c10', subject:'math', title:'এসএসসি গণিত — বীজগণিত মাস্টারক্লাস',
+        description:'এসএসসি সিলেবাসের সম্পূর্ণ বীজগণিত অধ্যায়ভিত্তিক সমাধান, সূত্র, এবং বোর্ড পরীক্ষার কমন প্রশ্ন নিয়ে সাজানো কোর্স।',
+        isFree:false, price:1200, oldPrice:1800, launched:true,
+        chapters:[
+          {id:'ch1', title:'বীজগণিতীয় সূত্রাবলী', duration:'৪৫ মিনিট', videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ'},
+          {id:'ch2', title:'উৎপাদকে বিশ্লেষণ', duration:'৫২ মিনিট', videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ'},
+          {id:'ch3', title:'সমীকরণ ও তার প্রয়োগ', duration:'৩৮ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[
+          {id:'lv1', title:'লাইভ সমস্যা সমাধান — বীজগণিত', dateTime:'2026-07-05T18:00', meetLink:'https://meet.google.com/abc-defg-hij'}
+        ]
+      },
+      {
+        id:'crs_2', classId:'c10', subject:'physics', title:'এসএসসি পদার্থবিজ্ঞান — সম্পূর্ণ কোর্স',
+        description:'গতি, বল, কাজ-ক্ষমতা-শক্তি সহ পদার্থবিজ্ঞানের সকল গুরুত্বপূর্ণ অধ্যায়ের ব্যাখ্যা ও সমস্যা সমাধান।',
+        isFree:false, price:1500, oldPrice:2000, launched:true,
+        chapters:[
+          {id:'ch1', title:'গতি ও বল', duration:'৫০ মিনিট', videoUrl:''},
+          {id:'ch2', title:'কাজ, ক্ষমতা ও শক্তি', duration:'৪৪ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[]
+      },
+      {
+        id:'crs_3', classId:'c10', subject:'english', title:'SSC English — Grammar Foundation',
+        description:'একটি ফ্রি কোর্স যেখানে SSC ইংরেজি ব্যাকরণের বেসিক বিষয়গুলো সহজভাবে আলোচনা করা হয়েছে।',
+        isFree:true, price:0, oldPrice:0, launched:true,
+        chapters:[
+          {id:'ch1', title:'Parts of Speech', duration:'৩০ মিনিট', videoUrl:'https://www.youtube.com/embed/dQw4w9WgXcQ'},
+          {id:'ch2', title:'Tense ও তার ব্যবহার', duration:'৩৫ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[]
+      },
+      {
+        id:'crs_4', classId:'c9', subject:'math', title:'নবম শ্রেণি গণিত — জ্যামিতি বিশেষ কোর্স',
+        description:'ক্লাস নাইনের জ্যামিতি অধ্যায়ের উপপাদ্য ও সমস্যাবলীর বিস্তারিত সমাধান।',
+        isFree:false, price:900, oldPrice:1300, launched:true,
+        chapters:[
+          {id:'ch1', title:'ত্রিভুজের উপপাদ্য', duration:'৪০ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[
+          {id:'lv1', title:'জ্যামিতি লাইভ ক্লাস — সপ্তাহ ১', dateTime:'2026-07-03T17:00', meetLink:'https://zoom.us/j/1234567890'}
+        ]
+      },
+      {
+        id:'crs_5', classId:'c9', subject:'ict', title:'ক্লাস ৯ আইসিটি — ফ্রি বেসিক কোর্স',
+        description:'কম্পিউটার ও তথ্যপ্রযুক্তির বুনিয়াদি ধারণা নিয়ে ফ্রি পরিচিতি কোর্স।',
+        isFree:true, price:0, oldPrice:0, launched:true,
+        chapters:[
+          {id:'ch1', title:'কম্পিউটার পরিচিতি', duration:'২৫ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[]
+      },
+      {
+        id:'crs_6', classId:'c12', subject:'chemistry', title:'এইচএসসি রসায়ন — জৈব রসায়ন স্পেশাল',
+        description:'এইচএসসি জৈব রসায়ন অধ্যায়ের বিক্রিয়া, মেকানিজম ও বোর্ড প্রশ্ন বিশ্লেষণ।',
+        isFree:false, price:1800, oldPrice:2500, launched:true,
+        chapters:[
+          {id:'ch1', title:'জৈব যৌগের নামকরণ', duration:'৪৮ মিনিট', videoUrl:''},
+          {id:'ch2', title:'বিক্রিয়া মেকানিজম', duration:'৫৫ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[
+          {id:'lv1', title:'লাইভ ডাউট ক্লিয়ারিং সেশন', dateTime:'2026-07-08T19:00', meetLink:'https://meet.google.com/xyz-uvwx-rst'}
+        ]
+      },
+      {
+        id:'crs_7', classId:'c11', subject:'biology', title:'একাদশ জীববিজ্ঞান — কোষ ও জীবন',
+        description:'কোষের গঠন, কার্যপ্রক্রিয়া এবং জীবনের মৌলিক একক নিয়ে বিস্তারিত আলোচনা।',
+        isFree:false, price:1100, oldPrice:1500, launched:true,
+        chapters:[
+          {id:'ch1', title:'কোষের গঠন', duration:'৪২ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[]
+      },
+      {
+        id:'crs_8', classId:'c12', subject:'math', title:'এইচএসসি উচ্চতর গণিত — ক্যালকুলাস',
+        description:'অন্তরীকরণ ও যোগজীকরণের মূল ধারণা থেকে বোর্ড পরীক্ষার গাণিতিক সমস্যা সমাধান।',
+        isFree:false, price:1700, oldPrice:2200, launched:false,
+        chapters:[
+          {id:'ch1', title:'অন্তরীকরণের ধারণা', duration:'৫০ মিনিট', videoUrl:''}
+        ],
+        liveClasses:[]
+      }
+    ],
+    enrollments: [
+      { id:'en_1', userId:'u_demo', courseId:'crs_3', status:'active', enrolledAt: Date.now()-86400000*3, progress:35 }
+    ],
+    paymentRequests: [
+      { id:'pr_1', userId:'u_demo', courseId:'crs_1', payerName:'রাফি আহমেদ', method:'bKash', payerNumber:'01712345678', txnId:'8N7K2P9XQR', status:'pending', createdAt: Date.now()-3600000*5 },
+      { id:'pr_2', userId:'u_demo', courseId:'crs_2', payerName:'রাফি আহমেদ', method:'Nagad', payerNumber:'01898765432', txnId:'TXN445566AB', status:'approved', createdAt: Date.now()-86400000*6, decidedAt: Date.now()-86400000*5 }
+    ],
+    tickets: [
+      { id:'tk_1', userId:'u_demo', subject:'ভিডিও লোড হচ্ছে না', message:'অধ্যায় ২ এর ভিডিওটি বাফার হয়েই থাকছে, প্লে হচ্ছে না।', status:'open', createdAt: Date.now()-86400000 }
+    ],
+    settings: {
+      bkashNumber:'01711-223344',
+      nagadNumber:'01911-556677',
+      siteName:'StudyCORE'
+    },
+    session: null
+  };
+}
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw){
+      const fresh = seedDB();
+      localStorage.setItem(DB_KEY, JSON.stringify(fresh));
+      return fresh;
+    }
+    return JSON.parse(raw);
+  }catch(e){
+    console.error('DB load failed, reseeding', e);
+    const fresh = seedDB();
+    localStorage.setItem(DB_KEY, JSON.stringify(fresh));
+    return fresh;
+  }
+}
+
+function saveDB(){
+  localStorage.setItem(DB_KEY, JSON.stringify(DB));
+}
+
+let DB = loadDB();
+
+/* ---------- ID HELPER ---------- */
+function uid(prefix){
+  return prefix + '_' + Math.random().toString(36).slice(2,9);
+}
+
+/* ---------- TOAST ---------- */
+let toastTimer=null;
+function showToast(msg, type=''){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.className = 'toast ' + type; }, 2800);
+}
+
+/* ---------- CURRENT SESSION (Firebase) ---------- */
+function getCurrentUser(){
+  return window._currentFbUser || null;
+}
+function isAdmin(){
+  const u = getCurrentUser();
+  return !!u && u.role==='admin';
+}
+/* ============================================================
+   ROUTER
+   route shape: { name, params }
+   ============================================================ */
+let ROUTE = { name:'home', params:{} };
+
+function navigate(name, params={}){
+  ROUTE = { name, params };
+  window.scrollTo({top:0, behavior:'instant'});
+  render();
+}
+
+/* expose for inline-bound buttons via data-nav on static chrome */
+document.addEventListener('click', (e)=>{
+  const navBtn = e.target.closest('[data-nav]');
+  if(navBtn){
+    const target = navBtn.getAttribute('data-nav');
+    navigate(target);
+    closeMobileMenu();
+  }
+});
+
+function closeMobileMenu(){
+  document.getElementById('navLinks').classList.remove('open');
+}
+document.getElementById('navBurger').addEventListener('click', ()=>{
+  document.getElementById('navLinks').classList.toggle('open');
+});
+
+/* ---------- helpers ---------- */
+function fmtMoney(n){
+  return '৳' + Number(n).toLocaleString('en-US');
+}
+function fmtDate(ts){
+  return new Date(ts).toLocaleDateString('bn-BD', { day:'numeric', month:'short', year:'numeric' });
+}
+function fmtDateTime(iso){
+  try{
+    return new Date(iso).toLocaleString('bn-BD', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  }catch(e){ return iso; }
+}
+function escapeHtml(str){
+  if(str==null) return '';
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function courseEnrolledByCurrentUser(courseId){
+  const u = getCurrentUser();
+  if(!u) return false;
+  return DB.enrollments.some(en=>en.userId===u.id && en.courseId===courseId && en.status==='active');
+}
+function pendingPaymentExists(courseId){
+  const u = getCurrentUser();
+  if(!u) return false;
+  return DB.paymentRequests.some(pr=>pr.userId===u.id && pr.courseId===courseId && pr.status==='pending');
+}
+
+/* ============================================================
+   MAIN RENDER — fills #app, #navActions, updates active nav link
+   ============================================================ */
+function render(){
+  renderNavActions();
+  updateActiveNavLink();
+  const app = document.getElementById('app');
+  const routeAtStart = ROUTE.name;
+  switch(ROUTE.name){
+    case 'home': app.innerHTML = pageHome(); afterHome(); break;
+    case 'classes': app.innerHTML = pageClasses(); afterClasses(); break;
+    case 'courseDetail': app.innerHTML = pageCourseDetail(ROUTE.params.id); afterCourseDetail(); break;
+    case 'login': app.innerHTML = pageAuth('login'); afterAuth(); break;
+    case 'signup': app.innerHTML = pageAuth('signup'); afterAuth(); break;
+    case 'dashboard': {
+      const u = getCurrentUser();
+      if(!u){ navigate('login'); return; }
+      app.innerHTML = pageDashboard(); afterDashboard(); break;
+    }
+    case 'learn': {
+      const u = getCurrentUser();
+      if(!u){ navigate('login'); return; }
+      const course = DB.courses.find(c=>c.id===ROUTE.params.id);
+      if(!course){ navigate('classes'); return; }
+      const allowed = course.isFree || courseEnrolledByCurrentUser(course.id) || u.role==='admin';
+      if(!allowed){ navigate('courseDetail', {id:course.id}); return; }
+      app.innerHTML = pageLearn(course); afterLearn(course.id); break;
+    }
+    case 'support': app.innerHTML = pageSupport(); afterSupport(); break;
+    case 'admin': {
+      const u = getCurrentUser();
+      if(!u || u.role!=='admin'){ navigate('login'); return; }
+      app.innerHTML = pageAdmin(); afterAdmin(); break;
+    }
+    default: app.innerHTML = pageHome(); afterHome();
+  }
+}
+
+function updateActiveNavLink(){
+  document.querySelectorAll('.nav-link').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('data-nav')===ROUTE.name || (ROUTE.name==='courseDetail' && b.getAttribute('data-nav')==='classes'));
+  });
+}
+
+function renderNavActions(){
+  const wrap = document.getElementById('navActions');
+  const u = getCurrentUser();
+  if(!u){
+    wrap.innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="navigate('login')">লগইন</button>
+      <button class="btn btn-primary btn-sm" onclick="navigate('signup')">সাইনআপ</button>
+    `;
+    return;
+  }
+  const initial = escapeHtml(u.name.trim().charAt(0).toUpperCase());
+  wrap.innerHTML = `
+    ${u.role==='admin' ? `<button class="btn btn-ghost btn-sm" onclick="navigate('admin')">অ্যাডমিন প্যানেল</button>` : `<button class="btn btn-ghost btn-sm" onclick="navigate('dashboard')">আমার ক্লাস</button>`}
+    <button class="avatar-pill" onclick="handleLogout()" title="লগআউট করুন">
+      <span class="avatar-circle">${initial}</span> ${escapeHtml(u.name.split(' ')[0])}
+    </button>
+  `;
+}
+
+function handleLogout(){
+  if(window._fbAuth && window._fbFns) {
+    window._fbFns.signOut(window._fbAuth).then(()=>{
+      window._currentFbUser = null;
+      showToast('লগআউট হয়েছে');
+      navigate('home');
+    });
+  } else {
+    DB.session = null;
+    saveDB();
+    showToast('লগআউট হয়েছে');
+    navigate('home');
+  }
+}
+
+/* (route guards are inlined directly in render() above) */
+
+/* ============================================================
+   PAGE: HOME
+   ============================================================ */
+function pageHome(){
+  const liveCourses = DB.courses.filter(c=>c.launched && c.liveClasses && c.liveClasses.length>0).slice(0,1);
+  return `
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <span class="eyebrow">৯ম–১২শ শ্রেণির সম্পূর্ণ পাঠ্যক্রম</span>
+        <h1>অংক থেকে রসায়ন —<br><em>সব বিষয়ে</em> একজন ভালো শিক্ষক।</h1>
+        <p class="hero-sub">StudyCORE-এ ক্লাস ৯ থেকে ১২ এর জন্য রেকর্ডেড ভিডিও কোর্স, সাপ্তাহিক লাইভ ক্লাস এবং ডাউট সলভিং সাপোর্ট — সব একই জায়গায়।</p>
+        <div class="hero-ctas">
+          <button class="btn btn-primary btn-lg" onclick="navigate('classes')">কোর্স দেখুন →</button>
+          <button class="btn btn-ghost btn-lg" data-nav="support">সাপোর্ট নিন</button>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><b>${DB.courses.filter(c=>c.launched).length}+</b><span>লাইভ কোর্স</span></div>
+          <div class="hero-stat"><b>৪</b><span>শ্রেণি কভার</span></div>
+          <div class="hero-stat"><b>৭</b><span>বিষয়</span></div>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="problem-card pc-1">
+          <span class="pc-label">বীজগণিত · অধ্যায় ৩</span>
+          <div class="pc-formula">x² + 5x + 6 = 0</div>
+          <span class="pc-check">✓ সমাধান সম্পন্ন</span>
+        </div>
+        <div class="problem-card pc-2">
+          <span class="pc-label">পদার্থবিজ্ঞান</span>
+          <div class="pc-formula">F = ma</div>
+          <span class="pc-check">✓ লাইভ ক্লাস আজ রাত ৮টায়</span>
+        </div>
+        <div class="problem-card pc-3">
+          <span class="pc-label">রসায়ন · জৈব</span>
+          <div class="pc-formula">CH₄ + 2O₂ → CO₂</div>
+          <span class="pc-check">✓ অধ্যায় শেষ</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div><h2>তোমার শ্রেণি বেছে নাও</h2><p>প্রতিটি শ্রেণির জন্য আলাদা সাজানো কোর্স তালিকা</p></div>
+    </div>
+    <div class="class-grid">
+      ${DB.classes.map((cls,i)=>`
+        <button class="class-card" onclick="navigate('classes', {classId:'${cls.id}'})">
+          <span class="tab-num">০${i+1}</span>
+          <h3>${escapeHtml(cls.name)}</h3>
+          <p class="cc-sub">${escapeHtml(cls.tagline)}</p>
+          <p class="cc-count">${DB.courses.filter(c=>c.classId===cls.id && c.launched).length} টি কোর্স উপলব্ধ</p>
+          <span class="cc-arrow">→</span>
+        </button>
+      `).join('')}
+    </div>
+  </section>
+
+  ${liveCourses.length ? `
+  <section class="section" style="padding-top:0;">
+    <div class="section-head"><div><h2>আজকের লাইভ ক্লাস</h2><p>নির্ধারিত সময়ে সরাসরি যোগ দাও</p></div></div>
+    ${liveCourses.map(c=>{
+      const lv = c.liveClasses[0];
+      return `
+      <div class="live-banner" style="max-width:560px;">
+        <span class="live-dot"></span>
+        <div style="flex:1;">
+          <b>${escapeHtml(lv.title)}</b>
+          <span>${escapeHtml(c.title)} · ${fmtDateTime(lv.dateTime)}</span>
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="navigate('courseDetail',{id:'${c.id}'})">দেখুন</button>
+      </div>`;
+    }).join('')}
+  </section>` : ''}
+
+  <section class="section" style="padding-top:0;">
+    <div class="section-head">
+      <div><h2>জনপ্রিয় কোর্সসমূহ</h2><p>সবচেয়ে বেশি শিক্ষার্থী যেসব কোর্সে ভর্তি হয়েছেন</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="navigate('classes')">সব কোর্স দেখুন →</button>
+    </div>
+    <div class="course-grid">
+      ${DB.courses.filter(c=>c.launched).slice(0,6).map(c=>courseCardHtml(c)).join('')}
+    </div>
+  </section>
+  `;
+}
+function afterHome(){}
+
+/* ============================================================
+   COURSE CARD (shared component)
+   ============================================================ */
+function courseCardHtml(c){
+  const subj = SUBJECTS[c.subject] || SUBJECTS.general;
+  const enrolled = courseEnrolledByCurrentUser(c.id);
+  return `
+  <div class="course-card" onclick="navigate('courseDetail', {id:'${c.id}'})">
+    <div class="course-tab" style="background:${subj.color};"></div>
+    <div class="course-banner" style="background:${subj.color};">
+      <span class="subject-icon">${subj.icon}</span>
+    </div>
+    <div class="course-body">
+      <div class="course-meta-row">
+        <span class="subject-chip" style="background:${subj.color}22; color:${subj.color};">${subj.label}</span>
+        ${c.isFree ? '<span class="badge badge-free">ফ্রি</span>' : '<span class="badge badge-paid">পেইড</span>'}
+      </div>
+      <h3>${escapeHtml(c.title)}</h3>
+      <p class="course-desc">${escapeHtml(c.description.slice(0,80))}${c.description.length>80?'…':''}</p>
+      <div class="course-foot">
+        <span class="course-price">${c.isFree ? 'ফ্রি' : (c.oldPrice>c.price ? `<span class="old">${fmtMoney(c.oldPrice)}</span>` : '') + fmtMoney(c.price)}</span>
+        <span class="course-stat">${enrolled ? '✓ ভর্তি আছে' : (c.liveClasses && c.liveClasses.length ? '🔴 লাইভ আছে' : `${c.chapters.length} অধ্যায়`)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   PAGE: CLASSES (catalog with filters)
+   ============================================================ */
+function pageClasses(){
+  const classId = ROUTE.params.classId || 'all';
+  const subjectFilter = ROUTE.params.subject || 'all';
+  let list = DB.courses.filter(c=>c.launched);
+  if(classId!=='all') list = list.filter(c=>c.classId===classId);
+  if(subjectFilter!=='all') list = list.filter(c=>c.subject===subjectFilter);
+
+  return `
+  <div class="section" style="padding-top:36px;">
+    <div class="section-head">
+      <div><h2>সব কোর্স</h2><p>তোমার শ্রেণি ও বিষয় অনুযায়ী কোর্স ফিল্টার করো</p></div>
+    </div>
+    <div class="pill-row" id="classPillRow">
+      <button class="pill ${classId==='all'?'active':''}" data-class="all">সব শ্রেণি</button>
+      ${DB.classes.map(cls=>`<button class="pill ${classId===cls.id?'active':''}" data-class="${cls.id}">${escapeHtml(cls.name)}</button>`).join('')}
+    </div>
+    <div class="pill-row" id="subjectPillRow">
+      <button class="pill ${subjectFilter==='all'?'active':''}" data-subject="all"><span class="dot" style="background:var(--ink-soft);"></span>সব বিষয়</button>
+      ${Object.entries(SUBJECTS).map(([key,s])=>`
+        <button class="pill ${subjectFilter===key?'active':''}" data-subject="${key}"><span class="dot" style="background:${s.color};"></span>${s.label}</button>
+      `).join('')}
+    </div>
+    <div class="course-grid" id="courseGridResults">
+      ${list.length ? list.map(c=>courseCardHtml(c)).join('') : `
+        <div class="empty-state" style="grid-column:1/-1;">
+          <div class="ee-icon">🔍</div>
+          <p>এই ফিল্টারে কোনো কোর্স পাওয়া যায়নি। অন্য শ্রেণি বা বিষয় বেছে নিন।</p>
+        </div>`}
+    </div>
+  </div>`;
+}
+function afterClasses(){
+  document.querySelectorAll('#classPillRow .pill').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigate('classes', { classId: btn.getAttribute('data-class'), subject: ROUTE.params.subject });
+    });
+  });
+  document.querySelectorAll('#subjectPillRow .pill').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigate('classes', { classId: ROUTE.params.classId, subject: btn.getAttribute('data-subject') });
+    });
+  });
+}
+
+/* ============================================================
+   PAGE: COURSE DETAIL
+   ============================================================ */
+function pageCourseDetail(courseId){
+  const c = DB.courses.find(x=>x.id===courseId);
+  if(!c){
+    return `<div class="section text-center"><p>কোর্সটি খুঁজে পাওয়া যায়নি।</p><button class="btn btn-dark" data-nav="classes" style="margin-top:16px;">সব কোর্সে ফিরে যান</button></div>`;
+  }
+  const subj = SUBJECTS[c.subject] || SUBJECTS.general;
+  const cls = DB.classes.find(k=>k.id===c.classId);
+  const enrolled = courseEnrolledByCurrentUser(c.id);
+  const pending = pendingPaymentExists(c.id);
+  const u = getCurrentUser();
+
+  let ctaHtml = '';
+  if(c.isFree){
+    ctaHtml = `<button class="btn btn-primary btn-block btn-lg" onclick="${u ? `navigate('learn',{id:'${c.id}'})` : `navigate('login')`}">ফ্রি কোর্সটি শুরু করো</button>`;
+  } else if(enrolled){
+    ctaHtml = `<button class="btn btn-primary btn-block btn-lg" onclick="navigate('learn',{id:'${c.id}'})">কোর্সে প্রবেশ করো →</button>`;
+  } else if(pending){
+    ctaHtml = `<div class="alert-box alert-warn">⏳ তোমার পেমেন্ট অনুমোদনের অপেক্ষায় আছে। অ্যাডমিন যাচাই করার পর কোর্সটি আনলক হবে।</div>`;
+  } else {
+    ctaHtml = `<button class="btn btn-primary btn-block btn-lg" onclick="openBuyModal('${c.id}')">কোর্সটি কিনুন</button>`;
+  }
+
+  const liveHtml = (c.liveClasses && c.liveClasses.length) ? c.liveClasses.map(lv=>`
+    <div class="live-banner">
+      <span class="live-dot"></span>
+      <div style="flex:1;">
+        <b>${escapeHtml(lv.title)}</b>
+        <span>${fmtDateTime(lv.dateTime)}</span>
+      </div>
+      ${(enrolled || c.isFree) ? (lv.meetLink ? `<a class="btn btn-dark btn-sm" href="${escapeHtml(lv.meetLink)}" target="_blank" rel="noopener">যোগ দাও</a>` : `<span class="field-hint">লিংক এখনো যুক্ত করা হয়নি</span>`) : `<span class="chapter-lock">🔒</span>`}
+    </div>
+  `).join('') : '';
+
+  return `
+  <div class="detail-wrap">
+    <div class="breadcrumb">
+      <button data-nav="classes">সব কোর্স</button> / <span>${escapeHtml(cls ? cls.name : '')}</span>
+    </div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-banner" style="background:linear-gradient(135deg, ${subj.color}, ${subj.color}cc);">
+          <span class="subject-icon-big">${subj.icon}</span>
+          <h1 class="detail-title">${escapeHtml(c.title)}</h1>
+          <div class="detail-tags">
+            <span class="tag-soft">${subj.label}</span>
+            <span class="tag-soft">${escapeHtml(cls ? cls.name : '')}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>কোর্স সম্পর্কে</h3>
+          <p>${escapeHtml(c.description)}</p>
+        </div>
+
+        ${liveHtml ? `<div class="detail-section"><h3>লাইভ ক্লাস</h3>${liveHtml}</div>` : ''}
+
+        <div class="detail-section">
+          <h3>অধ্যায়সমূহ (${c.chapters.length})</h3>
+          <div class="chapter-list">
+            ${c.chapters.map((ch,i)=>`
+              <div class="chapter-item">
+                <span class="chapter-num">${i+1}</span>
+                <div class="chapter-info">
+                  <b>${escapeHtml(ch.title)}</b>
+                  <span>${escapeHtml(ch.duration)}</span>
+                </div>
+                ${(enrolled || c.isFree) ? '<span class="chapter-play">▶ দেখুন</span>' : '<span class="chapter-lock">🔒</span>'}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="sidebar-price">
+          ${c.isFree ? '<b>ফ্রি</b>' : `${c.oldPrice>c.price ? `<span class="old">${fmtMoney(c.oldPrice)}</span>`:''}<b>${fmtMoney(c.price)}</b>`}
+        </div>
+        ${(!c.isFree && c.oldPrice>c.price) ? `<div class="sidebar-discount">${Math.round((1-c.price/c.oldPrice)*100)}% ছাড় চলছে</div>` : ''}
+        ${ctaHtml}
+        <ul class="sidebar-list">
+          <li><span class="ic">✓</span> ${c.chapters.length} টি ভিডিও অধ্যায়</li>
+          <li><span class="ic">✓</span> ${c.liveClasses.length ? c.liveClasses.length + ' টি লাইভ ক্লাস' : 'প্রয়োজনে লাইভ ক্লাস'}</li>
+          <li><span class="ic">✓</span> যেকোনো সময় প্রশ্ন করার সাপোর্ট</li>
+          <li><span class="ic">✓</span> মোবাইল ও কম্পিউটারে দেখার সুবিধা</li>
+        </ul>
+      </div>
+    </div>
+  </div>`;
+}
+function afterCourseDetail(){}
+/* ============================================================
+   PAGE: AUTH (login / signup)
+   ============================================================ */
+function pageAuth(mode){
+  return `
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h2>${mode==='login' ? 'লগইন করো' : 'অ্যাকাউন্ট খোলো'}</h2>
+      <p class="auth-sub">${mode==='login' ? 'তোমার কোর্সে প্রবেশ করতে লগইন করো' : 'নতুন অ্যাকাউন্ট খুলে কোর্স ব্রাউজ শুরু করো'}</p>
+
+      <form id="authForm">
+        ${mode==='signup' ? `
+        <div class="field">
+          <label for="authName">পূর্ণ নাম</label>
+          <input id="authName" type="text" placeholder="যেমন: রাফি আহমেদ" required>
+        </div>` : ''}
+        <div class="field">
+          <label for="authEmail">ইমেইল</label>
+          <input id="authEmail" type="email" placeholder="you@example.com" required>
+        </div>
+        <div class="field">
+          <label for="authPass">পাসওয়ার্ড</label>
+          <input id="authPass" type="password" placeholder="••••••••" required minlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">${mode==='login' ? 'লগইন করো' : 'অ্যাকাউন্ট খোলো'}</button>
+      </form>
+
+      ${mode==='login' ? `
+      <div id="emailVerifyNotice" class="alert-box alert-warn" style="display:none;margin-top:14px;">
+        <p id="emailVerifyMsg"></p>
+        <button type="button" class="btn btn-dark btn-sm" id="resendVerifyBtn" style="margin-top:10px;">আবার ভেরিফিকেশন ইমেইল পাঠাও</button>
+      </div>` : ''}
+
+      <p class="auth-switch">
+        ${mode==='login' ? `অ্যাকাউন্ট নেই? <button onclick="navigate('signup')">সাইনআপ করো</button>` : `অ্যাকাউন্ট আছে? <button onclick="navigate('login')">লগইন করো</button>`}
+      </p>
+    </div>
+  </div>`;
+}
+
+function afterAuth(){
+  const form = document.getElementById('authForm');
+  if(!form) return;
+
+  // -- Unverified-email UI (login page only) --
+  const noticeBox = document.getElementById('emailVerifyNotice');
+  const noticeMsg = document.getElementById('emailVerifyMsg');
+  const resendBtn = document.getElementById('resendVerifyBtn');
+  // Kept only in memory for this page instance, so "Resend" can silently
+  // re-authenticate (Firebase requires a signed-in user to call
+  // sendEmailVerification). Never persisted or stored anywhere.
+  let pendingEmail = null, pendingPass = null;
+
+  function hideVerifyNotice(){
+    if(noticeBox) noticeBox.style.display = 'none';
+  }
+  function showVerifyNotice(){
+    if(!noticeBox) return;
+    noticeMsg.textContent = 'আপনার ইমেইল এখনও Verify করা হয়নি। অনুগ্রহ করে ইমেইল Inbox বা Spam Folder থেকে Verification Link-এ ক্লিক করুন।';
+    noticeBox.style.display = 'block';
+  }
+
+  resendBtn?.addEventListener('click', async ()=>{
+    if(!pendingEmail || !pendingPass) return;
+    resendBtn.disabled = true;
+    const originalText = resendBtn.textContent;
+    resendBtn.textContent = 'পাঠানো হচ্ছে...';
+    try{
+      const cred = await window._fbFns.signInWithEmailAndPassword(window._fbAuth, pendingEmail, pendingPass);
+      if(cred.user.emailVerified){
+        // Verified in the meantime (e.g. user already clicked the link) — just sign them in normally.
+        await window._fbFns.signOut(window._fbAuth);
+        hideVerifyNotice();
+        showToast('তোমার ইমেইল ইতিমধ্যে Verify করা হয়েছে। আবার লগইন করো।', 'success');
+      } else {
+        await window._fbFns.sendEmailVerification(cred.user);
+        await window._fbFns.signOut(window._fbAuth);
+        showToast('ভেরিফিকেশন ইমেইল আবার পাঠানো হয়েছে। ইনবক্স বা Spam Folder চেক করো।', 'success');
+      }
+    } catch(err){
+      const msgs = {
+        'auth/too-many-requests': 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করো।',
+        'auth/network-request-failed': 'ইন্টারনেট সংযোগ পরীক্ষা করো এবং আবার চেষ্টা করো।',
+        'auth/user-not-found': 'অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। আবার লগইন করার চেষ্টা করো।',
+        'auth/wrong-password': 'অ্যাকাউন্ট যাচাই করতে সমস্যা হয়েছে। আবার লগইন করো।',
+        'auth/invalid-credential': 'অ্যাকাউন্ট যাচাই করতে সমস্যা হয়েছে। আবার লগইন করো।',
+      };
+      showToast(msgs[err.code] || 'ইমেইল পাঠাতে সমস্যা হয়েছে। আবার চেষ্টা করো।', 'error');
+    } finally {
+      resendBtn.disabled = false;
+      resendBtn.textContent = originalText;
+    }
+  });
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    hideVerifyNotice();
+    const email = document.getElementById('authEmail').value.trim().toLowerCase();
+    const pass = document.getElementById('authPass').value;
+    const submitBtn = form.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'অপেক্ষা করো...';
+
+    try {
+      if(ROUTE.name==='signup'){
+        const name = document.getElementById('authName').value.trim();
+        // Create Firebase Auth user
+        const cred = await window._fbFns.createUserWithEmailAndPassword(window._fbAuth, email, pass);
+        // Save profile to Firestore (NO password stored here)
+        await window._fbFns.setDoc(
+          window._fbFns.doc(window._fbDb, 'users', cred.user.uid),
+          { name, email, role: 'student', createdAt: window._fbFns.serverTimestamp() }
+        );
+        // Send the verification email right away
+        await window._fbFns.sendEmailVerification(cred.user);
+        // Sign the user out immediately — they must verify before they can log in
+        await window._fbFns.signOut(window._fbAuth);
+        window._currentFbUser = null;
+        showToast('আপনার ইমেইলে একটি Verification Link পাঠানো হয়েছে। অনুগ্রহ করে ইমেইল verify করে তারপর Login করুন।', 'success');
+        navigate('login');
+      } else {
+        // Firebase Auth handles password verification securely on the server
+        const cred = await window._fbFns.signInWithEmailAndPassword(window._fbAuth, email, pass);
+
+        if(!cred.user.emailVerified){
+          // Block access until verified
+          await window._fbFns.signOut(window._fbAuth);
+          window._currentFbUser = null;
+          pendingEmail = email;
+          pendingPass = pass;
+          showVerifyNotice();
+          return;
+        }
+
+        const userSnap = await window._fbFns.getDoc(window._fbFns.doc(window._fbDb, 'users', cred.user.uid));
+        if(userSnap.exists()){
+          window._currentFbUser = { id: cred.user.uid, ...userSnap.data() };
+        } else {
+          window._currentFbUser = { id: cred.user.uid, email, name: email, role: 'student' };
+        }
+        showToast(`স্বাগতম, ${window._currentFbUser.name.split(' ')[0]}!`, 'success');
+        navigate(window._currentFbUser.role==='admin' ? 'admin' : 'dashboard');
+      }
+    } catch(err) {
+      const msgs = {
+        'auth/user-not-found': 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে',
+        'auth/wrong-password': 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে',
+        'auth/invalid-credential': 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে',
+        'auth/email-already-in-use': 'এই ইমেইল দিয়ে ইতিমধ্যে অ্যাকাউন্ট আছে',
+        'auth/weak-password': 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
+        'auth/invalid-email': 'সঠিক ইমেইল দাও',
+        'auth/too-many-requests': 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করো।',
+        'auth/network-request-failed': 'ইন্টারনেট সংযোগ পরীক্ষা করো এবং আবার চেষ্টা করো।',
+        'auth/user-disabled': 'এই অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে।',
+      };
+      showToast(msgs[err.code] || 'কিছু একটা ভুল হয়েছে। আবার চেষ্টা করো।', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = ROUTE.name==='login' ? 'লগইন করো' : 'অ্যাকাউন্ট খোলো';
+    }
+  });
+}
+
+/* ============================================================
+   BUY / PAYMENT MODAL
+   ============================================================ */
+let buyState = { courseId:null, method:'bKash' };
+
+function openBuyModal(courseId){
+  const u = getCurrentUser();
+  if(!u){ navigate('login'); return; }
+  const c = DB.courses.find(x=>x.id===courseId);
+  if(!c) return;
+  buyState = { courseId, method:'bKash' };
+  renderModal(buyModalHtml(c));
+}
+
+function buyModalHtml(c){
+  return `
+  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>কোর্স কিনুন</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-sub">${escapeHtml(c.title)} — <b>${fmtMoney(c.price)}</b> পরিশোধ করে কোর্সটি আনলক করো।</p>
+
+        <div class="pay-method-row">
+          <button class="pay-method ${buyState.method==='bKash'?'active':''}" id="payBkashBtn">bKash</button>
+          <button class="pay-method ${buyState.method==='Nagad'?'active':''}" id="payNagadBtn">Nagad</button>
+        </div>
+
+        <div class="pay-number-box">
+          <span id="payNumberDisplay">${buyState.method==='bKash' ? DB.settings.bkashNumber : DB.settings.nagadNumber} (Personal/Send Money)</span>
+          <button class="copy-btn" id="copyNumberBtn">কপি করুন</button>
+        </div>
+
+        <div class="alert-box alert-info">এই নাম্বারে <b>${fmtMoney(c.price)}</b> Send Money করে নিচের ফর্মে তোমার তথ্য ও Transaction ID দাও। অ্যাডমিন যাচাই করে কোর্স আনলক করে দিবেন।</div>
+
+        <form id="buyForm">
+          <div class="field">
+            <label for="buyName">তোমার নাম</label>
+            <input id="buyName" type="text" value="${escapeHtml(getCurrentUser()?.name || '')}" required>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="buyNumber">যেই নাম্বার থেকে টাকা পাঠিয়েছ</label>
+              <input id="buyNumber" type="tel" placeholder="01XXXXXXXXX" pattern="01[0-9]{9}" required>
+            </div>
+            <div class="field">
+              <label for="buyTxn">Transaction ID</label>
+              <input id="buyTxn" type="text" placeholder="যেমন: 8N7K2P9XQR" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg">পেমেন্ট সাবমিট করো</button>
+        </form>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindBuyModalEvents(courseId){
+  const c = DB.courses.find(x=>x.id===courseId);
+  document.getElementById('payBkashBtn').onclick = ()=>{ buyState.method='bKash'; renderModal(buyModalHtml(c)); };
+  document.getElementById('payNagadBtn').onclick = ()=>{ buyState.method='Nagad'; renderModal(buyModalHtml(c)); };
+  document.getElementById('copyNumberBtn').onclick = ()=>{
+    const num = buyState.method==='bKash' ? DB.settings.bkashNumber : DB.settings.nagadNumber;
+    navigator.clipboard?.writeText(num).then(()=>showToast('নাম্বার কপি হয়েছে', 'success')).catch(()=>{});
+  };
+  document.getElementById('buyForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const u = getCurrentUser();
+    const payerName = document.getElementById('buyName').value.trim();
+    const payerNumber = document.getElementById('buyNumber').value.trim();
+    const txnId = document.getElementById('buyTxn').value.trim();
+    if(!payerName || !payerNumber || !txnId){
+      showToast('সব তথ্য পূরণ করো', 'error'); return;
+    }
+    DB.paymentRequests.push({
+      id: uid('pr'), userId: u.id, courseId: courseId,
+      payerName, method: buyState.method, payerNumber, txnId,
+      status:'pending', createdAt: Date.now()
+    });
+    saveDB();
+    closeModal();
+    showToast('পেমেন্ট রিকোয়েস্ট সাবমিট হয়েছে। অনুমোদনের অপেক্ষায় আছে।', 'success');
+    navigate('courseDetail', {id: courseId});
+  });
+}
+
+/* ============================================================
+   MODAL ROOT HELPERS
+   ============================================================ */
+function renderModal(html){
+  document.getElementById('modalRoot').innerHTML = html;
+  if(document.getElementById('buyForm')){
+    bindBuyModalEvents(buyState.courseId);
+  }
+}
+function closeModal(){
+  document.getElementById('modalRoot').innerHTML = '';
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape') closeModal();
+});
+
+/* ============================================================
+   PAGE: STUDENT DASHBOARD
+   ============================================================ */
+let dashTab = 'courses';
+
+function pageDashboard(){
+  const u = getCurrentUser();
+  const myEnrollments = DB.enrollments.filter(en=>en.userId===u.id && en.status==='active');
+  const myPayments = DB.paymentRequests.filter(pr=>pr.userId===u.id).sort((a,b)=>b.createdAt-a.createdAt);
+  const myTickets = DB.tickets.filter(t=>t.userId===u.id).sort((a,b)=>b.createdAt-a.createdAt);
+
+  return `
+  <div class="dash-wrap">
+    <div class="dash-head">
+      <h2>স্বাগতম, ${escapeHtml(u.name.split(' ')[0])} 👋</h2>
+      <p>তোমার কোর্স, পেমেন্ট স্ট্যাটাস এবং সাপোর্ট টিকেট এখান থেকে দেখো।</p>
+    </div>
+    <div class="dash-tabs">
+      <button class="dash-tab ${dashTab==='courses'?'active':''}" id="tabCourses">আমার কোর্স (${myEnrollments.length})</button>
+      <button class="dash-tab ${dashTab==='payments'?'active':''}" id="tabPayments">পেমেন্ট হিস্টোরি (${myPayments.length})</button>
+      <button class="dash-tab ${dashTab==='tickets'?'active':''}" id="tabTickets">সাপোর্ট টিকেট (${myTickets.length})</button>
+    </div>
+    <div id="dashContent">
+      ${dashTab==='courses' ? dashCoursesHtml(myEnrollments) : dashTab==='payments' ? dashPaymentsHtml(myPayments) : dashTicketsHtml(myTickets)}
+    </div>
+  </div>`;
+}
+
+function dashCoursesHtml(enrollments){
+  const freeCourses = DB.courses.filter(c=>c.isFree && c.launched);
+  const ids = new Set(enrollments.map(e=>e.courseId));
+  const allMine = [...enrollments.map(e=>({...e, course: DB.courses.find(c=>c.id===e.courseId)})),
+                   ...freeCourses.filter(c=>!ids.has(c.id)).map(c=>({course:c, progress:0, isFreeAccess:true}))];
+
+  if(!allMine.length){
+    return `<div class="empty-state"><div class="ee-icon">📚</div><p>এখনো কোনো কোর্সে ভর্তি হওনি।</p><button class="btn btn-dark" style="margin-top:14px;" onclick="navigate('classes')">কোর্স ব্রাউজ করো</button></div>`;
+  }
+  return `<div class="myc-row">
+    ${allMine.filter(item=>item.course).map(item=>{
+      const c = item.course;
+      const subj = SUBJECTS[c.subject] || SUBJECTS.general;
+      return `
+      <div class="myc-item">
+        <div class="myc-thumb" style="background:${subj.color};">${subj.icon}</div>
+        <div class="myc-info">
+          <b>${escapeHtml(c.title)}</b>
+          <span>${subj.label} · ${c.chapters.length} অধ্যায়</span>
+          <div class="myc-progress-track"><div class="myc-progress-fill" style="width:${item.progress||0}%;"></div></div>
+        </div>
+        <button class="btn btn-dark btn-sm" onclick="navigate('learn',{id:'${c.id}'})">চালিয়ে যাও</button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function dashPaymentsHtml(payments){
+  if(!payments.length){
+    return `<div class="empty-state"><div class="ee-icon">🧾</div><p>এখনো কোনো পেমেন্ট রিকোয়েস্ট করোনি।</p></div>`;
+  }
+  const statusLabel = {pending:'অপেক্ষমান', approved:'অনুমোদিত', rejected:'বাতিল হয়েছে'};
+  return payments.map(p=>{
+    const c = DB.courses.find(x=>x.id===p.courseId);
+    return `
+    <div class="pending-item">
+      <div>
+        <b>${escapeHtml(c ? c.title : 'কোর্স মুছে ফেলা হয়েছে')}</b>
+        <span>${p.method} · ${escapeHtml(p.txnId)} · ${fmtDate(p.createdAt)}</span>
+      </div>
+      <span class="status-chip status-${p.status}">${statusLabel[p.status]}</span>
+    </div>`;
+  }).join('');
+}
+
+function dashTicketsHtml(tickets){
+  return `
+    <button class="btn btn-primary btn-sm" style="margin-bottom:18px;" onclick="navigate('support')">নতুন টিকেট খুলো</button>
+    ${!tickets.length ? `<div class="empty-state"><div class="ee-icon">💬</div><p>কোনো সাপোর্ট টিকেট নেই।</p></div>` :
+      tickets.map(t=>`
+      <div class="ticket-item">
+        <b>${escapeHtml(t.subject)}</b>
+        <p>${escapeHtml(t.message)}</p>
+        <div class="ticket-meta">
+          <span style="font-size:12px;color:var(--ink-soft);">${fmtDate(t.createdAt)}</span>
+          <span class="status-chip ${t.status==='open'?'status-pending':'status-approved'}">${t.status==='open'?'খোলা আছে':'সমাধান হয়েছে'}</span>
+        </div>
+      </div>`).join('')}
+  `;
+}
+
+function afterDashboard(){
+  document.getElementById('tabCourses')?.addEventListener('click', ()=>{ dashTab='courses'; render(); });
+  document.getElementById('tabPayments')?.addEventListener('click', ()=>{ dashTab='payments'; render(); });
+  document.getElementById('tabTickets')?.addEventListener('click', ()=>{ dashTab='tickets'; render(); });
+}
+
+/* ============================================================
+   PAGE: LEARN (video player + chapter list)
+   ============================================================ */
+let learnActiveChapter = {};
+
+function pageLearn(course){
+  if(learnActiveChapter[course.id]===undefined) learnActiveChapter[course.id] = 0;
+  const idx = learnActiveChapter[course.id];
+  const ch = course.chapters[idx];
+  const subj = SUBJECTS[course.subject] || SUBJECTS.general;
+
+  return `
+  <div class="breadcrumb" style="max-width:1180px;margin:20px auto 0;padding:0 24px;">
+    <button data-nav="classes">সব কোর্স</button> / <button onclick="navigate('courseDetail',{id:'${course.id}'})">${escapeHtml(course.title)}</button>
+  </div>
+  <div class="learn-grid" style="max-width:1180px;margin:0 auto;">
+    <div class="learn-main">
+      <div class="video-frame">
+        ${ch && ch.videoUrl ? `<iframe src="${escapeHtml(ch.videoUrl)}" allowfullscreen></iframe>` : `
+          <div class="video-placeholder">
+            <div class="vp-icon">🎬</div>
+            <p>এই অধ্যায়ের ভিডিও এখনো যুক্ত করা হয়নি।</p>
+          </div>`}
+      </div>
+      <h2 style="font-size:21px;margin-bottom:8px;">${ch ? escapeHtml(ch.title) : 'অধ্যায় নির্বাচন করো'}</h2>
+      <p style="color:var(--ink-soft);font-size:14px;">${subj.label} · ${course.chapters.length} অধ্যায়ের মধ্যে ${idx+1} নম্বর</p>
+
+      ${course.liveClasses && course.liveClasses.length ? `
+        <div class="detail-section" style="margin-top:28px;">
+          <h3>লাইভ ক্লাস</h3>
+          ${course.liveClasses.map(lv=>`
+            <div class="live-banner">
+              <span class="live-dot"></span>
+              <div style="flex:1;"><b>${escapeHtml(lv.title)}</b><span>${fmtDateTime(lv.dateTime)}</span></div>
+              ${lv.meetLink ? `<a class="btn btn-dark btn-sm" href="${escapeHtml(lv.meetLink)}" target="_blank" rel="noopener">যোগ দাও</a>` : `<span class="field-hint">লিংক এখনো যুক্ত করা হয়নি</span>`}
+            </div>`).join('')}
+        </div>` : ''}
+    </div>
+    <div class="learn-sidebar">
+      <div class="learn-sb-head">অধ্যায়সমূহ</div>
+      ${course.chapters.map((c,i)=>`
+        <div class="learn-ch-item ${i===idx?'active':''}" data-idx="${i}">
+          <span class="learn-ch-num">${i+1}</span>
+          <span class="learn-ch-title">${escapeHtml(c.title)}</span>
+          <span class="learn-ch-dur">${escapeHtml(c.duration)}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+function afterLearn(courseId){
+  document.querySelectorAll('.learn-ch-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      learnActiveChapter[courseId] = parseInt(item.getAttribute('data-idx'));
+      render();
+    });
+  });
+}
+/* ============================================================
+   PAGE: ADMIN PANEL
+   ============================================================ */
+let adminTab = 'overview';
+let adminEditingCourseId = null; // null = not editing/creating, 'new' = creating
+
+function pageAdmin(){
+  const pendingCount = DB.paymentRequests.filter(p=>p.status==='pending').length;
+  const openTicketCount = DB.tickets.filter(t=>t.status==='open').length;
+
+  return `
+  <div class="admin-wrap">
+    <nav class="admin-side">
+      <div class="admin-side-head">পরিসংখ্যান</div>
+      <button class="admin-nav-item ${adminTab==='overview'?'active':''}" data-tab="overview">ওভারভিউ</button>
+
+      <div class="admin-side-head">কোর্স</div>
+      <button class="admin-nav-item ${adminTab==='courses'?'active':''}" data-tab="courses">সব কোর্স</button>
+      <button class="admin-nav-item ${adminTab==='classes'?'active':''}" data-tab="classes">শ্রেণি ম্যানেজ</button>
+
+      <div class="admin-side-head">পেমেন্ট</div>
+      <button class="admin-nav-item ${adminTab==='payments'?'active':''}" data-tab="payments">
+        পেমেন্ট রিকোয়েস্ট ${pendingCount ? `<span class="admin-nav-badge">${pendingCount}</span>` : ''}
+      </button>
+      <button class="admin-nav-item ${adminTab==='settings'?'active':''}" data-tab="settings">পেমেন্ট নাম্বার সেটিংস</button>
+
+      <div class="admin-side-head">সাপোর্ট</div>
+      <button class="admin-nav-item ${adminTab==='support'?'active':''}" data-tab="support">
+        সাপোর্ট টিকেট ${openTicketCount ? `<span class="admin-nav-badge">${openTicketCount}</span>` : ''}
+      </button>
+    </nav>
+    <div class="admin-main" id="adminMain">
+      ${adminTabContent()}
+    </div>
+  </div>`;
+}
+
+function adminTabContent(){
+  switch(adminTab){
+    case 'overview': return adminOverview();
+    case 'courses': return adminCourses();
+    case 'classes': return adminClasses();
+    case 'payments': return adminPayments();
+    case 'settings': return adminSettings();
+    case 'support': return adminSupport();
+    default: return adminOverview();
+  }
+}
+
+function afterAdmin(){
+  document.querySelectorAll('.admin-nav-item').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      adminTab = btn.getAttribute('data-tab');
+      adminEditingCourseId = null;
+      document.getElementById('adminMain').innerHTML = adminTabContent();
+      bindAdminTabEvents();
+    });
+  });
+  bindAdminTabEvents();
+}
+
+function refreshAdminMain(){
+  document.getElementById('adminMain').innerHTML = adminTabContent();
+  bindAdminTabEvents();
+}
+
+function bindAdminTabEvents(){
+  if(adminTab==='courses') bindAdminCoursesEvents();
+  if(adminTab==='classes') bindAdminClassesEvents();
+  if(adminTab==='payments') bindAdminPaymentsEvents();
+  if(adminTab==='settings') bindAdminSettingsEvents();
+  if(adminTab==='support') bindAdminSupportEvents();
+}
+
+/* ---------- OVERVIEW ---------- */
+function adminOverview(){
+  const totalStudents = DB.users.filter(u=>u.role==='student').length;
+  const activeEnrollments = DB.enrollments.filter(e=>e.status==='active').length;
+  const pendingPay = DB.paymentRequests.filter(p=>p.status==='pending').length;
+  const approvedRevenue = DB.paymentRequests.filter(p=>p.status==='approved').reduce((sum,p)=>{
+    const c = DB.courses.find(x=>x.id===p.courseId);
+    return sum + (c ? c.price : 0);
+  },0);
+
+  const recentPending = DB.paymentRequests.filter(p=>p.status==='pending').sort((a,b)=>b.createdAt-a.createdAt).slice(0,5);
+
+  return `
+  <h2>ওভারভিউ</h2>
+  <p class="am-sub">তোমার প্ল্যাটফর্মের সার্বিক অবস্থা একনজরে।</p>
+  <div class="kpi-row">
+    <div class="kpi-card"><span>মোট শিক্ষার্থী</span><b>${totalStudents}</b></div>
+    <div class="kpi-card"><span>সক্রিয় ভর্তি</span><b>${activeEnrollments}</b></div>
+    <div class="kpi-card"><span>অপেক্ষমান পেমেন্ট</span><b>${pendingPay}</b></div>
+    <div class="kpi-card"><span>অনুমোদিত আয়</span><b>${fmtMoney(approvedRevenue)}</b></div>
+  </div>
+  <div class="form-card">
+    <h3>সাম্প্রতিক অপেক্ষমান পেমেন্ট</h3>
+    ${recentPending.length ? `
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>শিক্ষার্থী</th><th>কোর্স</th><th>মেথড</th><th>Txn ID</th><th>সময়</th></tr></thead>
+        <tbody>
+          ${recentPending.map(p=>{
+            const c = DB.courses.find(x=>x.id===p.courseId);
+            return `<tr><td>${escapeHtml(p.payerName)}</td><td>${escapeHtml(c?c.title:'—')}</td><td>${p.method}</td><td style="font-family:var(--font-mono);">${escapeHtml(p.txnId)}</td><td>${fmtDate(p.createdAt)}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : `<p style="color:var(--ink-soft);font-size:13.5px;">কোনো অপেক্ষমান পেমেন্ট নেই।</p>`}
+  </div>`;
+}
+
+/* ---------- COURSES: list ---------- */
+function adminCourses(){
+  if(adminEditingCourseId){
+    return adminCourseForm(adminEditingCourseId);
+  }
+  return `
+  <h2>সব কোর্স</h2>
+  <p class="am-sub">কোর্স তৈরি, এডিট, লঞ্চ/আনলঞ্চ করো।</p>
+  <div class="admin-toolbar">
+    <div class="search-box">🔍 <input id="courseSearchInput" placeholder="কোর্স খুঁজুন..."></div>
+    <button class="btn btn-primary btn-sm" id="newCourseBtn">+ নতুন কোর্স তৈরি করো</button>
+  </div>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>কোর্স</th><th>শ্রেণি</th><th>বিষয়</th><th>মূল্য</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+      <tbody id="courseTableBody">
+        ${adminCourseRows(DB.courses)}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function adminCourseRows(list){
+  if(!list.length) return `<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:30px;">কোনো কোর্স পাওয়া যায়নি।</td></tr>`;
+  return list.map(c=>{
+    const cls = DB.classes.find(k=>k.id===c.classId);
+    const subj = SUBJECTS[c.subject] || SUBJECTS.general;
+    return `
+    <tr>
+      <td><b>${escapeHtml(c.title)}</b></td>
+      <td>${escapeHtml(cls?cls.name:'—')}</td>
+      <td><span class="subject-chip" style="background:${subj.color}22;color:${subj.color};">${subj.label}</span></td>
+      <td>${c.isFree ? 'ফ্রি' : fmtMoney(c.price)}</td>
+      <td><span class="status-chip ${c.launched?'status-approved':'status-pending'}">${c.launched?'লঞ্চ হয়েছে':'ড্রাফট'}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit="${c.id}" title="এডিট করো">✎</button>
+          <button class="icon-btn" data-toggle="${c.id}" title="${c.launched?'আনলঞ্চ করো':'লঞ্চ করো'}">${c.launched?'⏸':'▶'}</button>
+          <button class="icon-btn danger" data-del="${c.id}" title="ডিলিট করো">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function bindAdminCoursesEvents(){
+  if(adminEditingCourseId){ bindAdminCourseFormEvents(); return; }
+
+  document.getElementById('newCourseBtn')?.addEventListener('click', ()=>{
+    adminEditingCourseId = 'new';
+    refreshAdminMain();
+  });
+  document.getElementById('courseSearchInput')?.addEventListener('input', (e)=>{
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = DB.courses.filter(c=>c.title.toLowerCase().includes(q));
+    document.getElementById('courseTableBody').innerHTML = adminCourseRows(filtered);
+    bindCourseRowActions();
+  });
+  bindCourseRowActions();
+}
+
+function bindCourseRowActions(){
+  document.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ adminEditingCourseId = btn.getAttribute('data-edit'); refreshAdminMain(); });
+  });
+  document.querySelectorAll('[data-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c = DB.courses.find(x=>x.id===btn.getAttribute('data-toggle'));
+      if(c){ c.launched = !c.launched; saveDB(); showToast(c.launched ? 'কোর্স লঞ্চ হয়েছে' : 'কোর্স আনলঞ্চ করা হয়েছে', 'success'); refreshAdminMain(); }
+    });
+  });
+  document.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm('তুমি কি নিশ্চিত এই কোর্সটি ডিলিট করতে চাও? এই অ্যাকশন ফিরিয়ে নেওয়া যাবে না।')){
+        DB.courses = DB.courses.filter(x=>x.id!==btn.getAttribute('data-del'));
+        saveDB();
+        showToast('কোর্স ডিলিট হয়েছে', 'success');
+        refreshAdminMain();
+      }
+    });
+  });
+}
+
+/* ---------- COURSE FORM (create/edit) ---------- */
+function adminCourseForm(courseId){
+  const isNew = courseId==='new';
+  const c = isNew ? {
+    id:null, classId: DB.classes[0]?.id || '', subject:'math', title:'', description:'',
+    isFree:false, price:0, oldPrice:0, launched:false, chapters:[], liveClasses:[]
+  } : DB.courses.find(x=>x.id===courseId);
+
+  if(!c) return `<p>কোর্স পাওয়া যায়নি।</p>`;
+
+  return `
+  <button class="btn btn-ghost btn-sm" id="backToCourseList" style="margin-bottom:18px;">← কোর্স তালিকায় ফিরে যাও</button>
+  <h2>${isNew ? 'নতুন কোর্স তৈরি করো' : 'কোর্স এডিট করো'}</h2>
+  <p class="am-sub">${escapeHtml(c.title || 'কোর্সের বিস্তারিত তথ্য পূরণ করো')}</p>
+
+  <div class="form-card">
+    <h3>মূল তথ্য</h3>
+    <div class="field"><label>কোর্সের নাম</label><input id="cfTitle" value="${escapeHtml(c.title)}" placeholder="যেমন: এসএসসি গণিত — বীজগণিত"></div>
+    <div class="field"><label>বিস্তারিত বর্ণনা</label><textarea id="cfDesc" rows="3" placeholder="কোর্স সম্পর্কে লিখো">${escapeHtml(c.description)}</textarea></div>
+    <div class="field-row">
+      <div class="field">
+        <label>শ্রেণি</label>
+        <select id="cfClass">${DB.classes.map(cls=>`<option value="${cls.id}" ${cls.id===c.classId?'selected':''}>${escapeHtml(cls.name)}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label>বিষয়</label>
+        <select id="cfSubject">${Object.entries(SUBJECTS).map(([key,s])=>`<option value="${key}" ${key===c.subject?'selected':''}>${s.label}</option>`).join('')}</select>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>মূল্য নির্ধারণ</h3>
+    <div class="toggle-row">
+      <div><strong>ফ্রি কোর্স</strong><span>চালু থাকলে শিক্ষার্থীরা পেমেন্ট ছাড়াই অ্যাক্সেস পাবে</span></div>
+      <label class="switch"><input type="checkbox" id="cfIsFree" ${c.isFree?'checked':''}><span class="track"></span></label>
+    </div>
+    <div class="field-row" id="cfPriceRow" style="${c.isFree?'display:none;':''} margin-top:14px;">
+      <div class="field"><label>মূল্য (৳)</label><input id="cfPrice" type="number" min="0" value="${c.price}"></div>
+      <div class="field"><label>পূর্বের মূল্য (৳, ছাড় দেখানোর জন্য — না থাকলে ০)</label><input id="cfOldPrice" type="number" min="0" value="${c.oldPrice}"></div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>অধ্যায়সমূহ (ভিডিও)</h3>
+    <div class="cur-list" id="chapterList">
+      ${c.chapters.map((ch,i)=>chapterRowHtml(ch,i)).join('')}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="addChapterBtn" style="margin-top:12px;">+ অধ্যায় যুক্ত করো</button>
+  </div>
+
+  <div class="form-card">
+    <h3>লাইভ ক্লাস</h3>
+    <div class="cur-list" id="liveList">
+      ${c.liveClasses.map((lv,i)=>liveRowHtml(lv,i)).join('')}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="addLiveBtn" style="margin-top:12px;">+ লাইভ ক্লাস যুক্ত করো</button>
+  </div>
+
+  <div class="toggle-row form-card" style="padding:18px 24px;">
+    <div><strong>কোর্স লঞ্চ করো</strong><span>বন্ধ থাকলে কোর্সটি ড্রাফট হিসেবে থাকবে, শিক্ষার্থীরা দেখতে পাবে না</span></div>
+    <label class="switch"><input type="checkbox" id="cfLaunched" ${c.launched?'checked':''}><span class="track"></span></label>
+  </div>
+
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-primary btn-lg" id="saveCourseBtn">কোর্স সেভ করো</button>
+    <button class="btn btn-ghost btn-lg" id="cancelCourseBtn">বাতিল করো</button>
+  </div>
+  `;
+}
+
+function chapterRowHtml(ch,i){
+  return `
+  <div class="cur-list-item" data-chapter-row="${i}">
+    <input type="text" placeholder="অধ্যায়ের নাম" value="${escapeHtml(ch.title)}" data-ch-title="${i}" style="flex:2;">
+    <input type="text" placeholder="সময় (যেমন: ৪৫ মিনিট)" value="${escapeHtml(ch.duration)}" data-ch-dur="${i}" style="flex:1;">
+    <input type="text" placeholder="ভিডিও URL (YouTube embed link)" value="${escapeHtml(ch.videoUrl||'')}" data-ch-url="${i}" style="flex:2;">
+    <button class="icon-btn danger" data-ch-del="${i}" title="মুছে ফেলো">✕</button>
+  </div>`;
+}
+function liveRowHtml(lv,i){
+  return `
+  <div class="cur-list-item" data-live-row="${i}">
+    <input type="text" placeholder="লাইভ ক্লাসের নাম" value="${escapeHtml(lv.title)}" data-lv-title="${i}" style="flex:2;">
+    <input type="datetime-local" value="${escapeHtml(lv.dateTime||'')}" data-lv-dt="${i}" style="flex:1;">
+    <input type="text" placeholder="Zoom/Meet লিংক" value="${escapeHtml(lv.meetLink||'')}" data-lv-link="${i}" style="flex:2;">
+    <button class="icon-btn danger" data-lv-del="${i}" title="মুছে ফেলো">✕</button>
+  </div>`;
+}
+
+function bindAdminCourseFormEvents(){
+  document.getElementById('backToCourseList')?.addEventListener('click', ()=>{ window.__cfChapters=null; window.__cfLive=null; window.__cfCourseIdTrack=null; adminEditingCourseId=null; refreshAdminMain(); });
+  document.getElementById('cancelCourseBtn')?.addEventListener('click', ()=>{ window.__cfChapters=null; window.__cfLive=null; window.__cfCourseIdTrack=null; adminEditingCourseId=null; refreshAdminMain(); });
+
+  document.getElementById('cfIsFree')?.addEventListener('change', (e)=>{
+    document.getElementById('cfPriceRow').style.display = e.target.checked ? 'none' : '';
+  });
+
+  // working in-memory copy of chapters/live classes for this form session
+  const courseId = adminEditingCourseId;
+  const existing = courseId==='new' ? null : DB.courses.find(x=>x.id===courseId);
+  if(!window.__cfChapters || window.__cfCourseIdTrack !== courseId){
+    window.__cfChapters = existing ? JSON.parse(JSON.stringify(existing.chapters)) : [];
+    window.__cfLive = existing ? JSON.parse(JSON.stringify(existing.liveClasses)) : [];
+    window.__cfCourseIdTrack = courseId;
+  }
+
+  function syncChapterListFromDOM(){
+    document.querySelectorAll('[data-chapter-row]').forEach(row=>{
+      const i = row.getAttribute('data-chapter-row');
+      const title = row.querySelector(`[data-ch-title="${i}"]`).value;
+      const dur = row.querySelector(`[data-ch-dur="${i}"]`).value;
+      const url = row.querySelector(`[data-ch-url="${i}"]`).value;
+      if(window.__cfChapters[i]) { window.__cfChapters[i].title=title; window.__cfChapters[i].duration=dur; window.__cfChapters[i].videoUrl=url; }
+    });
+  }
+  function syncLiveListFromDOM(){
+    document.querySelectorAll('[data-live-row]').forEach(row=>{
+      const i = row.getAttribute('data-live-row');
+      const title = row.querySelector(`[data-lv-title="${i}"]`).value;
+      const dt = row.querySelector(`[data-lv-dt="${i}"]`).value;
+      const link = row.querySelector(`[data-lv-link="${i}"]`).value;
+      if(window.__cfLive[i]) { window.__cfLive[i].title=title; window.__cfLive[i].dateTime=dt; window.__cfLive[i].meetLink=link; }
+    });
+  }
+
+  document.getElementById('addChapterBtn')?.addEventListener('click', ()=>{
+    syncChapterListFromDOM();
+    window.__cfChapters.push({id: uid('ch'), title:'', duration:'', videoUrl:''});
+    document.getElementById('chapterList').innerHTML = window.__cfChapters.map((ch,i)=>chapterRowHtml(ch,i)).join('');
+    bindChapterRowDeletes();
+  });
+  document.getElementById('addLiveBtn')?.addEventListener('click', ()=>{
+    syncLiveListFromDOM();
+    window.__cfLive.push({id: uid('lv'), title:'', dateTime:'', meetLink:''});
+    document.getElementById('liveList').innerHTML = window.__cfLive.map((lv,i)=>liveRowHtml(lv,i)).join('');
+    bindLiveRowDeletes();
+  });
+
+  function bindChapterRowDeletes(){
+    document.querySelectorAll('[data-ch-del]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        syncChapterListFromDOM();
+        window.__cfChapters.splice(parseInt(btn.getAttribute('data-ch-del')),1);
+        document.getElementById('chapterList').innerHTML = window.__cfChapters.map((ch,i)=>chapterRowHtml(ch,i)).join('');
+        bindChapterRowDeletes();
+      });
+    });
+  }
+  function bindLiveRowDeletes(){
+    document.querySelectorAll('[data-lv-del]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        syncLiveListFromDOM();
+        window.__cfLive.splice(parseInt(btn.getAttribute('data-lv-del')),1);
+        document.getElementById('liveList').innerHTML = window.__cfLive.map((lv,i)=>liveRowHtml(lv,i)).join('');
+        bindLiveRowDeletes();
+      });
+    });
+  }
+  bindChapterRowDeletes();
+  bindLiveRowDeletes();
+
+  document.getElementById('saveCourseBtn')?.addEventListener('click', ()=>{
+    syncChapterListFromDOM();
+    syncLiveListFromDOM();
+    const title = document.getElementById('cfTitle').value.trim();
+    if(!title){ showToast('কোর্সের নাম দিতে হবে', 'error'); return; }
+
+    const payload = {
+      classId: document.getElementById('cfClass').value,
+      subject: document.getElementById('cfSubject').value,
+      title,
+      description: document.getElementById('cfDesc').value.trim(),
+      isFree: document.getElementById('cfIsFree').checked,
+      price: parseInt(document.getElementById('cfPrice').value)||0,
+      oldPrice: parseInt(document.getElementById('cfOldPrice').value)||0,
+      launched: document.getElementById('cfLaunched').checked,
+      chapters: window.__cfChapters,
+      liveClasses: window.__cfLive
+    };
+    if(payload.isFree){ payload.price = 0; payload.oldPrice = 0; }
+
+    if(courseId==='new'){
+      DB.courses.push({ id: uid('crs'), ...payload });
+      showToast('নতুন কোর্স তৈরি হয়েছে', 'success');
+    } else {
+      const idx = DB.courses.findIndex(x=>x.id===courseId);
+      DB.courses[idx] = { ...DB.courses[idx], ...payload };
+      showToast('কোর্স আপডেট হয়েছে', 'success');
+    }
+    saveDB();
+    window.__cfChapters = null; window.__cfLive = null; window.__cfCourseIdTrack = null;
+    adminEditingCourseId = null;
+    refreshAdminMain();
+  });
+}
+
+/* ---------- CLASSES MANAGE ---------- */
+function adminClasses(){
+  return `
+  <h2>শ্রেণি ম্যানেজ করো</h2>
+  <p class="am-sub">প্ল্যাটফর্মে কোন কোন শ্রেণি দেখানো হবে তা ঠিক করো।</p>
+  <div class="cur-list" id="classManageList">
+    ${DB.classes.map((cls,i)=>`
+      <div class="cur-list-item" data-class-row="${cls.id}">
+        <input type="text" value="${escapeHtml(cls.name)}" data-cls-name="${cls.id}" style="flex:1;">
+        <input type="text" value="${escapeHtml(cls.tagline)}" data-cls-tag="${cls.id}" style="flex:2;">
+        <button class="icon-btn danger" data-cls-del="${cls.id}">✕</button>
+      </div>
+    `).join('')}
+  </div>
+  <button class="btn btn-ghost btn-sm" id="addClassBtn" style="margin:14px 0;">+ নতুন শ্রেণি যুক্ত করো</button>
+  <br>
+  <button class="btn btn-primary" id="saveClassesBtn">পরিবর্তন সেভ করো</button>
+  `;
+}
+function bindAdminClassesEvents(){
+  document.getElementById('addClassBtn')?.addEventListener('click', ()=>{
+    DB.classes.push({id: uid('c'), name:'নতুন শ্রেণি', tagline:''});
+    saveDB();
+    refreshAdminMain();
+  });
+  document.querySelectorAll('[data-cls-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-cls-del');
+      if(DB.courses.some(c=>c.classId===id)){
+        showToast('এই শ্রেণিতে কোর্স আছে, প্রথমে কোর্সগুলো মুছো বা সরাও', 'error');
+        return;
+      }
+      DB.classes = DB.classes.filter(c=>c.id!==id);
+      saveDB();
+      refreshAdminMain();
+    });
+  });
+  document.getElementById('saveClassesBtn')?.addEventListener('click', ()=>{
+    DB.classes.forEach(cls=>{
+      const nameInput = document.querySelector(`[data-cls-name="${cls.id}"]`);
+      const tagInput = document.querySelector(`[data-cls-tag="${cls.id}"]`);
+      if(nameInput) cls.name = nameInput.value.trim();
+      if(tagInput) cls.tagline = tagInput.value.trim();
+    });
+    saveDB();
+    showToast('শ্রেণির তথ্য সেভ হয়েছে', 'success');
+  });
+}
+
+/* ---------- PAYMENTS ---------- */
+function adminPayments(){
+  const all = DB.paymentRequests.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+  <h2>পেমেন্ট রিকোয়েস্ট</h2>
+  <p class="am-sub">শিক্ষার্থীদের পেমেন্ট যাচাই করে অনুমোদন বা বাতিল করো।</p>
+  <div class="chip-toggle" id="paymentFilterChips" style="margin-bottom:18px;">
+    <button class="active" data-filter="pending">অপেক্ষমান</button>
+    <button data-filter="approved">অনুমোদিত</button>
+    <button data-filter="rejected">বাতিল</button>
+    <button data-filter="all">সব</button>
+  </div>
+  <div id="paymentTableWrap">${paymentTableHtml(all.filter(p=>p.status==='pending'))}</div>
+  `;
+}
+function paymentTableHtml(list){
+  if(!list.length) return `<div class="empty-state"><div class="ee-icon">✅</div><p>এই অবস্থায় কোনো পেমেন্ট নেই।</p></div>`;
+  const statusLabel = {pending:'অপেক্ষমান', approved:'অনুমোদিত', rejected:'বাতিল'};
+  return `
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>শিক্ষার্থী</th><th>কোর্স</th><th>মেথড</th><th>নাম্বার</th><th>Txn ID</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+      <tbody>
+        ${list.map(p=>{
+          const c = DB.courses.find(x=>x.id===p.courseId);
+          const u = DB.users.find(x=>x.id===p.userId);
+          return `
+          <tr>
+            <td><b>${escapeHtml(p.payerName)}</b><br><span style="font-size:11.5px;color:var(--ink-soft);">${escapeHtml(u?u.email:'')}</span></td>
+            <td>${escapeHtml(c?c.title:'কোর্স মুছে ফেলা হয়েছে')}</td>
+            <td>${p.method}</td>
+            <td style="font-family:var(--font-mono);">${escapeHtml(p.payerNumber)}</td>
+            <td style="font-family:var(--font-mono);">${escapeHtml(p.txnId)}</td>
+            <td><span class="status-chip status-${p.status}">${statusLabel[p.status]}</span></td>
+            <td>
+              ${p.status==='pending' ? `
+                <div class="row-actions">
+                  <button class="icon-btn" data-approve="${p.id}" title="অনুমোদন করো">✓</button>
+                  <button class="icon-btn danger" data-reject="${p.id}" title="বাতিল করো">✕</button>
+                </div>` : `<span style="font-size:12px;color:var(--ink-soft);">${fmtDate(p.decidedAt||p.createdAt)}</span>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+function bindAdminPaymentsEvents(){
+  document.querySelectorAll('#paymentFilterChips button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#paymentFilterChips button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.getAttribute('data-filter');
+      const all = DB.paymentRequests.slice().sort((a,b)=>b.createdAt-a.createdAt);
+      const filtered = f==='all' ? all : all.filter(p=>p.status===f);
+      document.getElementById('paymentTableWrap').innerHTML = paymentTableHtml(filtered);
+      bindPaymentRowActions();
+    });
+  });
+  bindPaymentRowActions();
+}
+function bindPaymentRowActions(){
+  document.querySelectorAll('[data-approve]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = DB.paymentRequests.find(x=>x.id===btn.getAttribute('data-approve'));
+      if(!p) return;
+      p.status='approved'; p.decidedAt = Date.now();
+      const already = DB.enrollments.find(en=>en.userId===p.userId && en.courseId===p.courseId);
+      if(already){ already.status='active'; } else {
+        DB.enrollments.push({id: uid('en'), userId:p.userId, courseId:p.courseId, status:'active', enrolledAt: Date.now(), progress:0});
+      }
+      saveDB();
+      showToast('পেমেন্ট অনুমোদিত হয়েছে, কোর্স আনলক হয়েছে', 'success');
+      refreshAdminMain();
+    });
+  });
+  document.querySelectorAll('[data-reject]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = DB.paymentRequests.find(x=>x.id===btn.getAttribute('data-reject'));
+      if(!p) return;
+      if(confirm('এই পেমেন্ট রিকোয়েস্ট বাতিল করতে চাও?')){
+        p.status='rejected'; p.decidedAt = Date.now();
+        saveDB();
+        showToast('পেমেন্ট বাতিল করা হয়েছে', 'success');
+        refreshAdminMain();
+      }
+    });
+  });
+}
+
+/* ---------- SETTINGS ---------- */
+function adminSettings(){
+  return `
+  <h2>পেমেন্ট নাম্বার সেটিংস</h2>
+  <p class="am-sub">শিক্ষার্থীরা পেমেন্টের সময় এই নাম্বারগুলো দেখবে।</p>
+  <div class="form-card">
+    <div class="field"><label>bKash নাম্বার</label><input id="setBkash" value="${escapeHtml(DB.settings.bkashNumber)}"></div>
+    <div class="field"><label>Nagad নাম্বার</label><input id="setNagad" value="${escapeHtml(DB.settings.nagadNumber)}"></div>
+    <button class="btn btn-primary" id="saveSettingsBtn">সেভ করো</button>
+  </div>`;
+}
+function bindAdminSettingsEvents(){
+  document.getElementById('saveSettingsBtn')?.addEventListener('click', ()=>{
+    DB.settings.bkashNumber = document.getElementById('setBkash').value.trim();
+    DB.settings.nagadNumber = document.getElementById('setNagad').value.trim();
+    saveDB();
+    showToast('সেটিংস সেভ হয়েছে', 'success');
+  });
+}
+
+/* ---------- SUPPORT (admin side) ---------- */
+function adminSupport(){
+  const tickets = DB.tickets.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+  <h2>সাপোর্ট টিকেট</h2>
+  <p class="am-sub">শিক্ষার্থীদের প্রশ্ন ও সমস্যার সমাধান করো।</p>
+  ${!tickets.length ? `<div class="empty-state"><div class="ee-icon">💬</div><p>কোনো টিকেট নেই।</p></div>` :
+    tickets.map(t=>{
+      const u = DB.users.find(x=>x.id===t.userId);
+      return `
+      <div class="ticket-item">
+        <b>${escapeHtml(t.subject)}</b> <span style="font-size:12px;color:var(--ink-soft);">— ${escapeHtml(u?u.name:'অজানা')}</span>
+        <p>${escapeHtml(t.message)}</p>
+        <div class="ticket-meta">
+          <span style="font-size:12px;color:var(--ink-soft);">${fmtDate(t.createdAt)}</span>
+          ${t.status==='open' ? `<button class="btn btn-dark btn-sm" data-resolve="${t.id}">সমাধান হয়েছে চিহ্নিত করো</button>` : `<span class="status-chip status-approved">সমাধান হয়েছে</span>`}
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+function bindAdminSupportEvents(){
+  document.querySelectorAll('[data-resolve]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = DB.tickets.find(x=>x.id===btn.getAttribute('data-resolve'));
+      if(t){ t.status='resolved'; saveDB(); showToast('টিকেট সমাধান হয়েছে চিহ্নিত হলো', 'success'); refreshAdminMain(); }
+    });
+  });
+}
+/* ============================================================
+   PAGE: SUPPORT
+   ============================================================ */
+const FAQS = [
+  { q:'কোর্স কেনার পর কতক্ষণে অ্যাক্সেস পাবো?', a:'পেমেন্ট সাবমিট করার পর অ্যাডমিন যাচাই করে অনুমোদন করেন। সাধারণত কয়েক ঘণ্টার মধ্যেই কোর্স আনলক হয়ে যায়। অনুমোদন হলে তুমি "আমার ক্লাস" থেকে কোর্সটি দেখতে পারবে।' },
+  { q:'ভুল Transaction ID দিলে কী হবে?', a:'অ্যাডমিন যাচাই করার সময় ভুল তথ্য পেলে রিকোয়েস্টটি বাতিল হয়ে যাবে। সেক্ষেত্রে সঠিক তথ্য দিয়ে আবার পেমেন্ট রিকোয়েস্ট সাবমিট করো, অথবা সাপোর্ট টিকেট খুলে যোগাযোগ করো।' },
+  { q:'লাইভ ক্লাসের লিংক কোথায় পাবো?', a:'যেই কোর্সে ভর্তি আছ, সেই কোর্সের পেজে বা "আমার ক্লাস" থেকে কোর্সে ঢুকলে লাইভ ক্লাসের Zoom/Meet লিংক দেখতে পাবে।' },
+  { q:'ফ্রি কোর্সের জন্য কি পেমেন্ট করতে হবে?', a:'না। ফ্রি ব্যাজ থাকা কোর্সগুলো সম্পূর্ণ বিনামূল্যে — লগইন করলেই সরাসরি দেখতে পারবে।' }
+];
+
+function pageSupport(){
+  const u = getCurrentUser();
+  return `
+  <div class="support-grid">
+    <div>
+      <h2 style="margin-bottom:6px;">সচরাচর জিজ্ঞাসা</h2>
+      <p style="color:var(--ink-soft);font-size:14px;margin-bottom:20px;">তোমার প্রশ্নের উত্তর এখানে খুঁজে দেখো</p>
+      <div id="faqList">
+        ${FAQS.map((f,i)=>`
+          <div class="faq-item" data-faq="${i}">
+            <div class="faq-q">${escapeHtml(f.q)} <span class="chev">▾</span></div>
+            <div class="faq-a">${escapeHtml(f.a)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div>
+      <h2 style="margin-bottom:6px;">সাপোর্ট টিকেট খুলো</h2>
+      <p style="color:var(--ink-soft);font-size:14px;margin-bottom:20px;">নির্দিষ্ট সমস্যার জন্য সরাসরি অ্যাডমিনকে জানাও</p>
+      ${u ? `
+      <form id="ticketForm" class="form-card">
+        <div class="field"><label for="tkSubject">বিষয়</label><input id="tkSubject" placeholder="যেমন: ভিডিও লোড হচ্ছে না" required></div>
+        <div class="field"><label for="tkMessage">বিস্তারিত লিখো</label><textarea id="tkMessage" rows="4" placeholder="সমস্যাটি বিস্তারিত লিখো..." required></textarea></div>
+        <button type="submit" class="btn btn-primary btn-block">টিকেট সাবমিট করো</button>
+      </form>` : `
+      <div class="alert-box alert-info">টিকেট খুলতে প্রথমে লগইন করো।</div>
+      <button class="btn btn-dark" onclick="navigate('login')">লগইন করো</button>
+      `}
+    </div>
+  </div>`;
+}
+
+function afterSupport(){
+  document.querySelectorAll('.faq-item').forEach(item=>{
+    item.querySelector('.faq-q').addEventListener('click', ()=>{
+      item.classList.toggle('open');
+    });
+  });
+  document.getElementById('ticketForm')?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const u = getCurrentUser();
+    const subject = document.getElementById('tkSubject').value.trim();
+    const message = document.getElementById('tkMessage').value.trim();
+    if(!subject || !message) return;
+    DB.tickets.push({ id: uid('tk'), userId:u.id, subject, message, status:'open', createdAt: Date.now() });
+    saveDB();
+    showToast('টিকেট সাবমিট হয়েছে। আমরা শীঘ্রই যোগাযোগ করব।', 'success');
+    navigate('dashboard');
+  });
+}
+
+/* ============================================================
+   APP INIT
+   ============================================================ */
+render();
+
+</script>
+</body>
+</html>
