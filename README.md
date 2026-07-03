@@ -1,1 +1,1 @@
-# StudyCORE
+# StudyCORE.
